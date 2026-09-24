@@ -64,6 +64,22 @@ your months sit somewhere else, redraw it:
 Or hand the SVG to Claude Code and ask it to update the year oval from it; the script is the
 deterministic version of that.
 
+### marking dates on the year (an idea, not built)
+
+The oval could also show what you're working toward: conference deadlines, a talk, the end of a
+term, a submission date. Knolling doesn't do this yet, but the pieces are there:
+
+- `YearOval` in [`MenuView.swift`](Sources/Knolling/MenuView.swift) already turns any date into a
+  spot on the ring (`position(of:)`, then `point(_:)`). That's how this week gets lit.
+- A date could be drawn at its spot as a small tick or dot, with a short label, the same way the week
+  segment is drawn. Past dates could fade; the next one could be brighter.
+- The dates themselves could come from a plain file you keep, one per line
+  (`2027-03-15  conference abstract due`), read the same way the log is. That keeps it portable and
+  hand-editable. They could come from a calendar instead, at the cost of that simplicity.
+
+If you build it, ask Claude Code something like: *"add upcoming dates from a dates file to the year
+oval, as small ticks with labels."* The pointer in `YearOval` marks where it goes.
+
 ## what it does
 
 - **Two kinds, one tap.** Research or teaching. Tap the live one to stop; tap the other to switch.

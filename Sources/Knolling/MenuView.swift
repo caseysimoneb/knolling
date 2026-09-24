@@ -258,6 +258,9 @@ struct YearOval: View {
                 ctx.draw(ctx.resolve(label), at: CGPoint(x: c.x * sx, y: c.y * sy), anchor: .center)
             }
 
+            // To mark other dates on the year (conference deadlines, talks, the end of a term), draw them
+            // here the same way: point(position(of: date)) gives each one's spot on the ring. See the
+            // README, "marking dates on the year".
             let from = position(of: weekStart), to = from + 7 / 365 * 12
             var lit = Path()
             for step in 0...12 {
