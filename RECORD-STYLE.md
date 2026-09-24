@@ -37,7 +37,7 @@ Every entry is one act, in one sentence, with three parts:
 
 | part | what it holds | examples |
 |---|---|---|
-| **subject** | who acted — only **I** or **Claude** | I · Claude |
+| **subject** | who acted — always somebody: **I**, **Claude**, or another person by name | I · Claude · [a collaborator] |
 | **predicate** | verb + object: what was done, to what | *specified* the export format · *drafted* slide text |
 | **context** | toward what, or within what, in plain words | so the data can be shared · for next week's lecture |
 
