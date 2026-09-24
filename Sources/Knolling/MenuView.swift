@@ -215,33 +215,47 @@ enum Mono {
     static let label = Face.mono(10)
 }
 
-/// The year as an ellipse, September at the near left, running clockwise over the top.
+/// The year as an ellipse, running clockwise over the top, with months placed where they're felt.
 /// This week is the short lit stretch on it.
 struct YearOval: View {
     let now: Date
     let weekStart: Date
     private let months = ["sep", "oct", "nov", "dec", "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug"]
 
+    /// Where each month begins on the ring, in degrees (0° = right, clockwise on screen), placed by hand
+    /// in design/year-oval.svg: September low on the left, winter bunched along the top, summer spread
+    /// along the bottom. The last value is September again, one turn on.
+    static let monthStarts: [Double] = [142.2, 167.2, 217.1, 242.7, 267.0, 277.5, 289.1, 303.9, 325.2, 393.9, 433.5, 474.7, 502.2]
+
+    /// Where each month's label sits, also placed by hand in design/year-oval.svg — centres, in points,
+    /// on the 288 × 86 drawing area.
+    static let labelCentres: [CGPoint] = [
+        CGPoint(x: 39.5, y: 70.4), CGPoint(x: 23.9, y: 42.6), CGPoint(x: 36.2, y: 18.7), CGPoint(x: 90.2, y: 9.7),
+        CGPoint(x: 151.7, y: 7.3), CGPoint(x: 173.0, y: 6.7), CGPoint(x: 195.5, y: 9.1), CGPoint(x: 219.6, y: 12.0),
+        CGPoint(x: 244.6, y: 19.3), CGPoint(x: 239.4, y: 68.0), CGPoint(x: 163.6, y: 80.0), CGPoint(x: 81.0, y: 79.8)
+    ]
+
     var body: some View {
         Canvas { ctx, size in
             let cx = size.width / 2, cy = size.height / 2
             let rx = size.width / 2 - 30, ry = size.height / 2 - 14
             func point(_ monthsFromSep: Double) -> CGPoint {
-                let a = CGFloat(Double.pi + monthsFromSep / 12 * 2 * Double.pi)
+                let i = max(0, min(11, Int(monthsFromSep)))
+                let f = monthsFromSep - Double(i)
+                let degrees = Self.monthStarts[i] + (Self.monthStarts[i + 1] - Self.monthStarts[i]) * f
+                let a = CGFloat(degrees * Double.pi / 180)
                 return CGPoint(x: cx + rx * CoreGraphics.cos(a), y: cy + ry * CoreGraphics.sin(a))
             }
             ctx.stroke(Path(ellipseIn: CGRect(x: cx - rx, y: cy - ry, width: 2 * rx, height: 2 * ry)),
                        with: .style(Color.primary.opacity(0.42)), lineWidth: 0.9)
 
             let current = Int(position(of: now))
+            let sx = size.width / 288, sy = size.height / 86
             for (i, m) in months.enumerated() {
-                let p = point(Double(i))
-                let dx: CGFloat = p.x < cx - 10 ? -6 : (p.x > cx + 10 ? 6 : 0)
-                let dy: CGFloat = p.y < cy ? -7 : 8
-                let anchor: UnitPoint = p.x < cx - 20 ? .trailing : (p.x > cx + 20 ? .leading : .center)
+                let c = Self.labelCentres[i]
                 let label = Text(m).font(Face.mono(8.5))
                     .foregroundStyle(i == current ? Color.primary : Color.primary.opacity(0.52))
-                ctx.draw(ctx.resolve(label), at: CGPoint(x: p.x + dx, y: p.y + dy), anchor: anchor)
+                ctx.draw(ctx.resolve(label), at: CGPoint(x: c.x * sx, y: c.y * sy), anchor: .center)
             }
 
             let from = position(of: weekStart), to = from + 7 / 365 * 12

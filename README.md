@@ -33,8 +33,9 @@ nothing hidden in a database.
 **Time drawn the way it's felt.** The shapes in the menu come from temporal synesthesia — the
 experience of time as having a place and shape in space:
 
-- **The year is an oval**, seen in perspective, with September at the near left and the months
-  running clockwise over the top. This week is a short lit stretch on it.
+- **The year is an oval**, seen in perspective, running clockwise over the top: September low on the
+  left, winter bunched along the top, summer spread along the bottom — each month placed by hand, not
+  spaced evenly. This week is a short lit stretch on it.
 - **The week is flat.** Sunday to Saturday on one straight line — only a year arcs.
 - **Within a day, time runs vertically**, so each hour worked is an upright tick, evenly spaced.
   The hour you're in counts as a whole tick. Research ticks are solid; teaching ticks are hollow.
@@ -48,6 +49,20 @@ from the week number, so it holds up over whatever is behind it while letting a 
 
 **Type.** [Geist](https://vercel.com/font) for words and Geist Mono for times and labels, bundled
 in the app. All times are 24-hour.
+
+## your own year
+
+The oval is drawn from one person's temporal synesthesia. If you experience time in space too and
+your months sit somewhere else, redraw it:
+
+1. Open [`design/year-oval.svg`](design/year-oval.svg) in Figma, Illustrator, or any SVG editor.
+   Each month is a group: a dot where that month begins on the ring, and its label.
+2. Move the dots and labels to where your months are. Bunch them, spread them — keep the ring itself
+   as it is. Export as SVG (outlined text is fine).
+3. Run `python3 scripts/oval-from-svg.py design/year-oval.svg --write`, then `./build.sh`.
+
+Or hand the SVG to Claude Code and ask it to update the year oval from it; the script is the
+deterministic version of that.
 
 ## what it does
 

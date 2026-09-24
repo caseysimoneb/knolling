@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 288 86" width="864" height="258" font-family="Geist Mono, SF Mono, Menlo, monospace" font-size="8.5">
+  <!-- Knolling's year oval, in the menu's own coordinates (points, 288 x 86). -->
+  <!-- One group per month, September to August: a dot where the month begins on the ring, and its label. -->
+  <!-- Move the groups (or dots and labels separately) to where your year sits, keep the ring as it is, then run: -->
+  <!--   python3 scripts/oval-from-svg.py design/year-oval.svg --write     (and ./build.sh) -->
+  <g id="backdrop"><rect width="288" height="86" fill="#2f5da2"/></g>
+  <ellipse id="ring" cx="144" cy="43" rx="114" ry="29" fill="none" stroke="#ffffff" stroke-opacity="0.55" stroke-width="0.9"/>
+  <g id="sep">
+    <circle cx="53.9" cy="60.8" r="1.6" fill="#ffffff"/>
+    <text x="39.5" y="73.4" text-anchor="middle" fill="#ffffff" fill-opacity="1">sep</text>
+  </g>
+  <g id="oct">
+    <circle cx="32.8" cy="49.4" r="1.6" fill="#ffffff"/>
+    <text x="23.9" y="45.6" text-anchor="middle" fill="#ffffff" fill-opacity="0.6">oct</text>
+  </g>
+  <g id="nov">
+    <circle cx="53.1" cy="25.5" r="1.6" fill="#ffffff"/>
+    <text x="36.2" y="21.7" text-anchor="middle" fill="#ffffff" fill-opacity="0.6">nov</text>
+  </g>
+  <g id="dec">
+    <circle cx="91.7" cy="17.2" r="1.6" fill="#ffffff"/>
+    <text x="90.2" y="12.7" text-anchor="middle" fill="#ffffff" fill-opacity="0.6">dec</text>
+  </g>
+  <g id="jan">
+    <circle cx="138.0" cy="14.0" r="1.6" fill="#ffffff"/>
+    <text x="151.7" y="10.3" text-anchor="middle" fill="#ffffff" fill-opacity="0.6">jan</text>
+  </g>
+  <g id="feb">
+    <circle cx="158.9" cy="14.2" r="1.6" fill="#ffffff"/>
+    <text x="173.0" y="9.7" text-anchor="middle" fill="#ffffff" fill-opacity="0.6">feb</text>
+  </g>
+  <g id="mar">
+    <circle cx="181.3" cy="15.6" r="1.6" fill="#ffffff"/>
+    <text x="195.5" y="12.1" text-anchor="middle" fill="#ffffff" fill-opacity="0.6">mar</text>
+  </g>
+  <g id="apr">
+    <circle cx="207.6" cy="18.9" r="1.6" fill="#ffffff"/>
+    <text x="219.6" y="15.0" text-anchor="middle" fill="#ffffff" fill-opacity="0.6">apr</text>
+  </g>
+  <g id="may">
+    <circle cx="237.6" cy="26.4" r="1.6" fill="#ffffff"/>
+    <text x="244.6" y="22.3" text-anchor="middle" fill="#ffffff" fill-opacity="0.6">may</text>
+  </g>
+  <g id="jun">
+    <circle cx="238.6" cy="59.2" r="1.6" fill="#ffffff"/>
+    <text x="239.4" y="71.0" text-anchor="middle" fill="#ffffff" fill-opacity="0.6">jun</text>
+  </g>
+  <g id="jul">
+    <circle cx="176.4" cy="70.8" r="1.6" fill="#ffffff"/>
+    <text x="163.6" y="83.0" text-anchor="middle" fill="#ffffff" fill-opacity="0.6">jul</text>
+  </g>
+  <g id="aug">
+    <circle cx="96.4" cy="69.3" r="1.6" fill="#ffffff"/>
+    <text x="81.0" y="82.8" text-anchor="middle" fill="#ffffff" fill-opacity="0.6">aug</text>
+  </g>
+</svg>
