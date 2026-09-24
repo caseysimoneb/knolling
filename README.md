@@ -1,0 +1,132 @@
+# Knolling
+
+A menu-bar clock for research and teaching. Clock in and out as many times as the day needs, say
+what you were doing in your own words, and keep the whole record in one plain Markdown file you own.
+
+Made by **Caseysimone Ballestas**, a graduate student at UC Berkeley. Built with [Claude Code](https://claude.com/claude-code).
+
+<img src="docs/menu.png" alt="The Knolling menu: a year drawn as an oval, research and teaching, a week of hour ticks, a note line, and today's sessions" width="372">
+
+*The menu, rendered from the sample log in [`sample/`](sample/knolling.md). Every entry is a placeholder.*
+
+---
+
+## why
+
+Graduate students at Berkeley live a double working life: research and teaching in the same week,
+often the same afternoon. Knolling was built to see how the hours actually divide between the two.
+
+Most time trackers are built for billing: one clock-in, a lunch break, one clock-out. Research
+and teaching don't work that way — they're a day of short stretches, switches, and returns.
+Knolling lets you tap **research** or **teaching** whenever you start, tap again when you stop,
+and tap the other to switch. Nothing else is required.
+
+Nothing depends on those two words. Swap them for any two kinds of work (they're the `Kind` enum in
+[`Log.swift`](Sources/Knolling/Log.swift)) and Knolling clocks those instead.
+
+## design notes
+
+**Knolling** is the practice of laying objects out at right angles so their relations become
+visible. The tool does the same with time: every session laid flat in one list, newest first,
+nothing hidden in a database.
+
+**Time drawn the way it's felt.** The shapes in the menu come from temporal synesthesia — the
+experience of time as having a place and shape in space:
+
+- **The year is an oval**, seen in perspective, with September at the near left and the months
+  running clockwise over the top. This week is a short lit stretch on it.
+- **The week is flat.** Sunday to Saturday on one straight line — only a year arcs.
+- **Within a day, time runs vertically**, so each hour worked is an upright tick, evenly spaced.
+  The hour you're in counts as a whole tick. Research ticks are solid; teaching ticks are hollow.
+- There is **no daily quota** drawn anywhere — no ring to fill, no day that is "full." There's one
+  weekly goal (40 hours by default; click it to change it), shown as a number.
+
+**Cyanotype.** The palette comes from 19th-century cyanotype survey photographs: Prussian blue
+leaning cyan, with highlights the warm white of the paper. The menu is a pane of glass over its
+own backdrop — pale forms seen through moving water, with a fine grain — drawn fresh each week
+from the week number, so it holds up over whatever is behind it while letting a little show through.
+
+**Type.** [Geist](https://vercel.com/font) for words and Geist Mono for times and labels, bundled
+in the app. All times are 24-hour.
+
+## what it does
+
+- **Two kinds, one tap.** Research or teaching. Tap the live one to stop; tap the other to switch.
+- **Notes in your own words.** Type or dictate (on-device when your Mac supports it) while a
+  session runs, and log a note when it ends. Words are saved as you said them.
+- **An hourly check-in that never pauses the clock.** Ignore it and the clock keeps running; it's
+  only there for when you forget to clock out.
+- **Fix anything by hand.** Click any time in the menu to change it (`8`, `830`, `2pm` all work),
+  or edit the log file directly — Knolling re-reads it and never overwrites your edits.
+- **Sessions stay collapsed** until you click one open to see what was done in it.
+
+## the log
+
+One Markdown file, newest first, readable anywhere:
+
+```
+- 2026-09-24  08:30–10:45  research  2h 15m
+    - 10:45  [a note typed or dictated at clock-out]
+    - record · I specified [a small tool] that [does one thing] and writes to a plain file I own.
+        - Claude built [the parts], and tested them on a scratch file.
+        - file: projects/example/notes.md
+        - folder: projects/example
+- 2026-09-24  11:00–       teaching  running
+```
+
+## the Claude record (optional, off by default)
+
+If you work with [Claude Code](https://claude.com/claude-code), Knolling can act as a quiet
+secretary. At clock-out it reads the Claude Code sessions **you actively used while clocked in**
+(only sessions where you sent a message inside that window, and only that slice of them) and adds
+a short record under the session: a one-line glance shown in the menu, a few lines of detail in the
+log, and the exact files Claude wrote or edited.
+
+The record is written to a style guide you own — [`RECORD-STYLE.md`](RECORD-STYLE.md) — built on a
+simple grammar: every entry is **subject + predicate + context**, one act per sentence, and the
+subject is always **I** or **Claude**. Judgment verbs (decided, framed, chose) belong to you;
+execution verbs (drafted, built, searched) can be Claude's; and when an idea came from Claude, the
+record says so. The point is a notebook where authorship stays legible.
+
+Turn it on with `defaults write <bundle id> claudeNotes -bool true`. It uses your own `claude` CLI
+(no tools, nothing saved as a session); you can limit it to one Claude account with the settings below.
+
+## build
+
+Requires macOS 14 or later (the glass is Liquid Glass on macOS 26) and the Xcode Command Line Tools.
+
+```bash
+./build.sh
+```
+
+This builds, installs `~/Applications/Knolling.app`, and opens it. Knolling registers itself to
+start at login on first run (undo in System Settings → General → Login Items).
+
+To use your own bundle identifier, put `KNOLLING_BUNDLE_ID=com.you.knolling` in a `mine.env` file
+next to `build.sh`.
+
+### settings
+
+`defaults write <bundle id> <key> <value>`:
+
+| key | what it does | default |
+|---|---|---|
+| `logPath` | where the log lives | `~/Documents/Knolling/knolling.md` |
+| `weeklyGoalHours` | the weekly goal (also editable in the menu) | `40` |
+| `claudeNotes` | turn the Claude record on | `false` |
+| `claudeEmail` | only write records while the `claude` CLI is signed in as this account | any |
+| `claudeAccountFolder` | only read desktop-app sessions from this account's folder | all |
+| `recordStylePath` | your own style guide | the bundled `RECORD-STYLE.md` |
+
+`Knolling --snapshot out.png -logPath sample/knolling.md -snapshotNow "2026-09-24 14:14"` renders
+the menu to an image — that's how the screenshot above was made.
+
+## privacy
+
+Everything stays on your Mac: the log is a local file, dictation is on-device when possible, and
+nothing is sent anywhere unless you turn on the Claude record, which uses your own Claude account.
+
+## license
+
+Code: MIT — see [`LICENSE`](LICENSE). Fonts: Geist and Geist Mono, SIL Open Font License
+([`Fonts/OFL.txt`](Fonts/OFL.txt)).

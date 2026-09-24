@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>com.example.knolling</string>
+    <key>CFBundleName</key>
+    <string>Knolling</string>
+    <key>CFBundleDisplayName</key>
+    <string>Knolling</string>
+    <key>CFBundleExecutable</key>
+    <string>Knolling</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>ATSApplicationFontsPath</key>
+    <string>Fonts</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Knolling listens only while the mic button is on, to turn what you say into a note.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Knolling turns dictated notes into text, on this Mac when possible.</string>
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>Knolling reads and writes its time log where you keep it.</string>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>Knolling reads and writes its time log where you keep it.</string>
+</dict>
+</plist>
