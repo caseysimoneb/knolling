@@ -45,7 +45,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     }
 
     @objc private func toggle() {
-        if panel.isVisible { panel.orderOut(nil); return }
+        if panel.isVisible { panel.orderOut(nil); store.menuClosed(); return }
         // A click on the status item first takes focus from the open panel; don't reopen it.
         if Date().timeIntervalSince(closedAt) < 0.3 { return }
         store.opened()
@@ -56,6 +56,7 @@ final class PanelController: NSObject, NSWindowDelegate {
 
     func windowDidResignKey(_ notification: Notification) {
         panel.orderOut(nil)
+        store.menuClosed()
         closedAt = Date()
     }
 

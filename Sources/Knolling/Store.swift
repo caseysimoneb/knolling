@@ -111,6 +111,10 @@ final class Store: ObservableObject {
 
     func skipPending() { pending = nil }
 
+    /// "Log a note" only lasts until the menu closes, so a later note can't land on a session that
+    /// ended earlier; the next time the menu opens, the note field belongs to what's running.
+    func menuClosed() { pending = nil }
+
     /// Scribe's record of the Claude sessions that ran during a session.
     func appendRecord(to id: String, _ lines: [String]) {
         attempt { try log.appendLines(to: id, lines) }
