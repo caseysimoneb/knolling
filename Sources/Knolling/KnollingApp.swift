@@ -1,3 +1,4 @@
+import Network
 import ServiceManagement
 import SwiftUI
 import UserNotifications
@@ -14,6 +15,7 @@ struct KnollingApp: App {
 
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     private var panel: PanelController?
+    private let network = NWPathMonitor()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // `Knolling --snapshot out.png`: render the menu to an image for review, then quit.
@@ -25,6 +27,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
         Notifier.setUp(delegate: self)
         panel = PanelController(store: Store.shared)
+        // Records owed from before a quit, a sleep, or a lost connection: try now, on wake, and
+        // whenever the network comes back.
+        Scribe.settle(Store.shared)
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { _ in
+            Scribe.settle(Store.shared)
+        }
+        network.pathUpdateHandler = { path in
+            if path.status == .satisfied { DispatchQueue.main.async { Scribe.settle(Store.shared) } }
+        }
+        network.start(queue: DispatchQueue(label: "knolling.network"))
         // A clock should always be there: start at login, set once on first run (undo in System Settings → Login Items).
         if !UserDefaults.standard.bool(forKey: "registeredForLogin") {
             try? SMAppService.mainApp.register()

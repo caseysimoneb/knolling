@@ -38,18 +38,68 @@ enum Scribe {
     private static let home = FileManager.default.homeDirectoryForCurrentUser.path
     private static let queue = DispatchQueue(label: "knolling.scribe", qos: .utility)
 
-    static func record(_ session: Session, into store: Store) {
+    // MARK: records owed
+    //
+    // A record is owed the moment a session ends, and it's saved to disk before anything else, so
+    // closing the laptop or losing Wi-Fi at clock-out only delays it. Owed records are tried at
+    // clock-out, on launch, on wake, when the network comes back, and every few minutes, and removed
+    // only once written. After a week without success, the files are written without the summary.
+
+    struct Owed: Codable {
+        let id: String, kind: String, start: Date, end: Date, owedSince: Date
+    }
+
+    private static var owedURL: URL {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Knolling", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("records-owed.json")
+    }
+    private static func loadOwed() -> [Owed] {
+        (try? Data(contentsOf: owedURL)).flatMap { try? JSONDecoder().decode([Owed].self, from: $0) } ?? []
+    }
+    private static func saveOwed(_ items: [Owed]) {
+        if let data = try? JSONEncoder().encode(items) { try? data.write(to: owedURL, options: .atomic) }
+    }
+
+    /// Clock-out: note the record as owed, then try to write it.
+    static func owe(_ session: Session, store: Store) {
         guard enabled, let end = session.end else { return }
-        let start = session.start
+        let item = Owed(id: session.id, kind: session.kind.rawValue, start: session.start, end: end, owedSince: Date())
+        queue.async { saveOwed(loadOwed() + [item]) }
+        settle(store)
+    }
+
+    // main-thread flags: one pass at a time, and another pass if something was owed during it
+    private static var settling = false
+    private static var again = false
+
+    /// Try every owed record. Safe to call often. Owed records are only read and written on
+    /// `queue`, one block at a time, so a pass can't race a new clock-out.
+    static func settle(_ store: Store) {
+        guard enabled else { return }
+        if settling { again = true; return }
+        settling = true
         queue.async {
-            let lines = recordLines(from: start, to: end)
-            guard !lines.isEmpty else { return }
-            DispatchQueue.main.async { store.appendRecord(to: session.id, lines) }
+            var keep: [Owed] = []
+            for item in loadOwed() {
+                let giveUp = Date().timeIntervalSince(item.owedSince) > 7 * 86_400
+                let (lines, complete) = recordLines(from: item.start, to: item.end, giveUp: giveUp)
+                if !complete { keep.append(item); continue }
+                if !lines.isEmpty { DispatchQueue.main.sync { store.appendRecord(for: item, lines) } }
+            }
+            saveOwed(keep)
+            DispatchQueue.main.async {
+                settling = false
+                if again { again = false; settle(store) }
+            }
         }
     }
 
-    /// The formatted lines for one clocked-in window (empty if no session counts).
-    static func recordLines(from start: Date, to end: Date) -> [String] {
+    /// The formatted lines for one clocked-in window, and whether they're final. Not final means the
+    /// summary couldn't be written yet (offline, asleep, busy) and the record is still owed.
+    static func recordLines(from start: Date, to end: Date, giveUp: Bool = true) -> (lines: [String], complete: Bool) {
+        var complete = true
         let found = activity(from: start, to: end)
         let canWrite = cliAllowed
         let style = stylePath.flatMap { try? String(contentsOfFile: $0, encoding: .utf8) }
@@ -63,6 +113,7 @@ enum Scribe {
                     written = write(a, style: style, from: start, to: end)
                 }
             }
+            if written == nil, canWrite, style != nil, !giveUp { complete = false; break }
             if let w = written {
                 lines.append("    - record · \(w.glance)")
                 lines += w.entries.map { "        - \($0)" }
@@ -78,7 +129,7 @@ enum Scribe {
             if files.count > 10 { lines.append("        - file: …and \(files.count - 10) more") }
             if let folder = a.folder { lines.append("        - folder: \(display(folder))") }
         }
-        return lines
+        return (lines, complete)
     }
 
     // MARK: finding the sessions I used
@@ -364,7 +415,8 @@ enum Scribe {
     }
 
     private static func cliPath() -> String? {
-        ["/opt/homebrew/bin/claude", "/usr/local/bin/claude", home + "/.local/bin/claude", home + "/.claude/local/claude"]
+        if let override = UserDefaults.standard.string(forKey: "claudePath") { return override }  // for tests
+        return ["/opt/homebrew/bin/claude", "/usr/local/bin/claude", home + "/.local/bin/claude", home + "/.claude/local/claude"]
             .first { FileManager.default.isExecutableFile(atPath: $0) }
     }
 

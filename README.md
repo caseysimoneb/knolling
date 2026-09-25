@@ -119,6 +119,10 @@ subject is always **I** or **Claude**. Judgment verbs (decided, framed, chose) b
 execution verbs (drafted, built, searched) can be Claude's; and when an idea came from Claude, the
 record says so. The point is a notebook where authorship stays legible.
 
+If you close the laptop or lose the connection at clock-out, nothing is lost: the record is saved as
+*owed* the moment you clock out and written once Knolling can reach Claude again (on wake, when the
+network returns, on relaunch, or within a few minutes).
+
 Turn it on with `defaults write <bundle id> claudeNotes -bool true`. It uses your own `claude` CLI
 (no tools, nothing saved as a session); you can limit it to one Claude account with the settings below.
 

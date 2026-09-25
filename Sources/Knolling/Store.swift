@@ -93,7 +93,7 @@ final class Store: ObservableObject {
         attempt {
             if let r = running {
                 let ended = try log.stop(r.id, at: now)
-                if let ended { Scribe.record(ended, into: self) }
+                if let ended { Scribe.owe(ended, store: self) }
                 // Notes always go to what's running. "Log a note" for an ended session appears only
                 // on a full clock-out; switching goes straight to the new session's note field.
                 pending = r.kind == kind ? ended : nil
@@ -118,9 +118,15 @@ final class Store: ObservableObject {
     /// ended earlier; the next time the menu opens, the note field belongs to what's running.
     func menuClosed() { pending = nil }
 
-    /// Scribe's record of the Claude sessions that ran during a session.
-    func appendRecord(to id: String, _ lines: [String]) {
-        attempt { try log.appendLines(to: id, lines) }
+    /// Scribe's record of the Claude sessions that ran during a session. Finds the session even if
+    /// its times were edited while the record was owed, and never writes a record twice.
+    func appendRecord(for owed: Scribe.Owed, _ lines: [String]) {
+        reload()
+        let target = sessions.first { $0.id == owed.id }
+            ?? sessions.first { $0.kind.rawValue == owed.kind && !$0.isRunning
+                && $0.start < owed.end && ($0.end ?? owed.end) > owed.start }
+        guard let target, !target.notes.contains(where: { $0.text.hasPrefix("record · ") }) else { return }
+        attempt { try log.appendLines(to: target.id, lines) }
     }
 
     func editNote(of s: Session, at index: Int, _ text: String) {
@@ -187,10 +193,14 @@ final class Store: ObservableObject {
 
     private func reload() { sessions = log.sessions() } // picks up hand edits too
 
+    private var ticks = 0
+
     private func tick() {
         if !pinnedNow { now = Date() }
         reload()
         checkNudge()
+        ticks += 1
+        if ticks % 30 == 0 { Scribe.settle(self) }   // every five minutes
     }
 
     /// Once per full hour of a running session. Ignoring it changes nothing.
