@@ -92,8 +92,11 @@ final class Store: ObservableObject {
         now = Date()
         attempt {
             if let r = running {
-                pending = try log.stop(r.id, at: now)
-                if let ended = pending { Scribe.record(ended, into: self) }
+                let ended = try log.stop(r.id, at: now)
+                if let ended { Scribe.record(ended, into: self) }
+                // Notes always go to what's running. "Log a note" for an ended session appears only
+                // on a full clock-out; switching goes straight to the new session's note field.
+                pending = r.kind == kind ? ended : nil
                 if r.kind == kind { return }
             }
             try log.start(kind, at: now)
