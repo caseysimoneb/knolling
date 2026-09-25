@@ -55,7 +55,14 @@ enum Scribe {
         let style = stylePath.flatMap { try? String(contentsOfFile: $0, encoding: .utf8) }
         var lines: [String] = []
         for a in found {
-            let written = (canWrite && style != nil) ? write(a, style: style!, from: start, to: end) : nil
+            var written: Written?
+            if canWrite, let style {
+                // a slow or busy moment shouldn't cost the record: try up to three times
+                for attempt in 0..<3 where written == nil {
+                    if attempt > 0 { Thread.sleep(forTimeInterval: 20) }
+                    written = write(a, style: style, from: start, to: end)
+                }
+            }
             if let w = written {
                 lines.append("    - record · \(w.glance)")
                 lines += w.entries.map { "        - \($0)" }
@@ -157,7 +164,9 @@ enum Scribe {
             guard let data = line.data(using: .utf8),
                   let entry = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
             if entrypoint == nil { entrypoint = entry["entrypoint"] as? String }
-            if cwd == nil { cwd = entry["cwd"] as? String }
+            if let c = entry["cwd"] as? String, (entry["timestamp"] as? String).flatMap(iso.date(from:)).map({ $0 >= start && $0 <= end }) ?? false {
+                cwd = c
+            } else if cwd == nil { cwd = entry["cwd"] as? String }
             // Messages I send while Claude is mid-reply are stored as queued attachments, not user turns.
             if entry["type"] as? String == "attachment",
                let att = entry["attachment"] as? [String: Any], att["type"] as? String == "queued_command",
@@ -196,6 +205,12 @@ enum Scribe {
                 case "tool_use":
                     let name = block["name"] as? String ?? ""
                     let input = block["input"] as? [String: Any] ?? [:]
+                    if name == "Bash", let command = input["command"] as? String {
+                        for path in Self.changedPaths(in: command, base: cwd, from: start, to: end) where keep(path) && !files.contains(path) {
+                            files.append(path)
+                            excerpt.append("[Claude changed \(display(path)) with a shell command]")
+                        }
+                    }
                     if ["Write", "Edit", "MultiEdit", "NotebookEdit"].contains(name),
                        let path = (input["file_path"] ?? input["notebook_path"]) as? String,
                        keep(path), !files.contains(path) {
@@ -258,6 +273,8 @@ enum Scribe {
         6. Each entry is at most 20 words. At most four entries besides the glance.
         7. Only research and teaching work; leave out incidental computer housekeeping.
         8. The glance says what the time served, in words an outside reader would understand.
+        9. No personal, family, or health details, even if the session touched them — leave that act out.
+        10. The author is "I". Never refer to the person as she, her, he, him, they, or "the user".
 
         Reply with only a JSON object, no code fence:
         {"glance": "<one entry>", "entries": ["<entry>", ...], "still_working": \(a.stillWorking ? "\"<what Claude was doing, briefly>\"" : "null")}
@@ -283,7 +300,7 @@ enum Scribe {
 
         let done = DispatchSemaphore(value: 0)
         DispatchQueue.global().async { p.waitUntilExit(); done.signal() }
-        if done.wait(timeout: .now() + 180) == .timedOut { p.terminate(); return nil }
+        if done.wait(timeout: .now() + 300) == .timedOut { p.terminate(); return nil }
         guard p.terminationStatus == 0 else { return nil }
 
         let raw = String(data: output.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
@@ -296,6 +313,47 @@ enum Scribe {
     }
 
     // MARK: helpers
+
+    /// Paths named in a shell command that point to files modified during the window — edits made
+    /// with scripts rather than the editing tools. Files only read are left out by the time check.
+    static func changedPaths(in command: String, base: String?, from start: Date, to end: Date) -> [String] {
+        var tokens: [String] = [], current = "", quote: Character?
+        for ch in command {
+            if let q = quote { if ch == q { quote = nil } else { current.append(ch) }; continue }
+            if ch == "\"" || ch == "'" { quote = ch; continue }
+            if ch.isWhitespace || ";|&()<>".contains(ch) {
+                if !current.isEmpty { tokens.append(current); current = "" }
+                continue
+            }
+            current.append(ch)
+        }
+        if !current.isEmpty { tokens.append(current) }
+        let fm = FileManager.default
+        let logPath = UserDefaults.standard.string(forKey: "logPath")
+        var out: [String] = []
+        func expand(_ t: String) -> String { t.hasPrefix("~/") ? home + t.dropFirst(1) : t }
+        var dir = base
+        var previous = ""
+        for raw in tokens {
+            defer { previous = raw }
+            if previous == "cd" { dir = expand(raw); continue }
+            // assignments like F=~/x or p='Sources/x.swift' name the path after the '='
+            let token = String(raw.split(separator: "=", omittingEmptySubsequences: false).last ?? "")
+            let path: String
+            if token.hasPrefix("~/") || token.hasPrefix(home + "/") {
+                path = expand(token)
+            } else if let dir, !token.hasPrefix("-"), token.contains("/") || token.contains(".") {
+                path = dir + "/" + token
+            } else { continue }
+            var isDir: ObjCBool = false
+            guard fm.fileExists(atPath: path, isDirectory: &isDir), !isDir.boolValue, path != logPath,
+                  !path.contains("/.git/"),
+                  let modified = (try? fm.attributesOfItem(atPath: path))?[.modificationDate] as? Date,
+                  modified >= start, modified <= end.addingTimeInterval(300) else { continue }
+            if !out.contains(path) { out.append(path) }
+        }
+        return out
+    }
 
     /// The email the `claude` CLI is signed in with.
     private static func cliAccount() -> String? {
