@@ -132,6 +132,10 @@ subject is always somebody: **I**, **Claude**, or another person. Judgment verbs
 execution verbs (drafted, built, searched) can be Claude's; and when an idea came from Claude, the
 record says so. The point is a notebook where authorship stays legible.
 
+Each session also shows, faintly, how many tokens its Claude sessions used — new work only (input,
+output, and cache written), not cache reads, which mostly measure how long a conversation has run. The
+full breakdown is in the log, and shows when you open the session.
+
 If you close the laptop or lose the connection at clock-out, nothing is lost: the record is saved as
 *owed* the moment you clock out and written once Knolling can reach Claude again (on wake, when the
 network returns, on relaunch, or within a few minutes). After a week, the file list is written
