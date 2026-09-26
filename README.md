@@ -99,6 +99,25 @@ oval, as small ticks with labels."* The pointer in `YearOval` marks where it goe
 - **The week runs Sunday to Saturday.** A quiet bar fills toward a weekly goal (40 hours by default;
   click the number to change it).
 
+## make it yours
+
+Knolling is built around a few things I value in how I work: noticing where the hours go, keeping a
+record of what I did in my own words, being honest about what Claude did alongside me, and seeing
+what that work took. They're mine, and they might not be yours — so each one is a switch. Turn off
+anything that doesn't help you; the clock itself works the same either way.
+
+| affordance | why it's there | on by default? | turn it on or off |
+|---|---|---|---|
+| **The Claude record** — a short, authored note of what you and Claude did, written at clock-out | so the record of your work includes the work you did with Claude, with credit where it belongs | off | `defaults write <bundle id> claudeNotes -bool true` (or `false`) |
+| **Token counts** — a faint number on each session | to see what a stretch of work took, not just how long it lasted | off | `defaults write <bundle id> claudeTokens -bool true` (or `false`) |
+| **The hourly check-in** — one quiet notification per hour | in case you forget to clock out; ignoring it changes nothing | on | `defaults write <bundle id> hourlyCheckIn -bool false` (or `true`) |
+| **The weekly goal** — hours toward a number you choose | a gentle sense of the week, without a daily quota | 40 hours | click the number in the menu |
+| **Starting at login** | so the clock is always there | on | System Settings → General → Login Items |
+
+The Claude record and token counts are separate: you can keep one without the other. Both read the
+Claude Code transcripts already on your Mac; only the record asks Claude to write anything, and only
+through your own account.
+
 ## the log
 
 One Markdown file, newest first, readable anywhere:
@@ -132,7 +151,7 @@ subject is always somebody: **I**, **Claude**, or another person. Judgment verbs
 execution verbs (drafted, built, searched) can be Claude's; and when an idea came from Claude, the
 record says so. The point is a notebook where authorship stays legible.
 
-Each session also shows, faintly, how many tokens its Claude sessions used — new work only (input,
+With token counts on, each session also shows, faintly, how many tokens its Claude sessions used — new work only (input,
 output, and cache written), not cache reads, which mostly measure how long a conversation has run. The
 full breakdown is in the log, and shows when you open the session.
 
@@ -175,6 +194,8 @@ next to `build.sh`.
 | `logPath` | where the log lives | `~/Documents/Knolling/knolling.md` |
 | `weeklyGoalHours` | the weekly goal (also editable in the menu) | `40` |
 | `claudeNotes` | turn the Claude record on | `false` |
+| `claudeTokens` | show token counts per session | `false` |
+| `hourlyCheckIn` | the hourly notification while a session runs | `true` |
 | `claudeEmail` | only write records while the `claude` CLI is signed in as this account | any |
 | `claudeAccountFolder` | only read desktop-app sessions from this account's folder | all |
 | `recordStylePath` | your own style guide | the bundled `RECORD-STYLE.md` |

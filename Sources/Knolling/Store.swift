@@ -188,7 +188,7 @@ final class Store: ObservableObject {
     }
 
     private func refreshLiveTokens() {
-        guard Scribe.enabled, let r = running else { return }
+        guard Scribe.tokensEnabled, let r = running else { return }
         let start = r.start, id = r.id
         DispatchQueue.global(qos: .utility).async {
             let n = Scribe.usage(from: start, to: Date()).new
@@ -218,6 +218,7 @@ final class Store: ObservableObject {
     /// Once per full hour of a running session. Ignoring it changes nothing.
     private func checkNudge() {
         guard let r = running else { nudged = nil; nudgeUnseen = false; return }
+        guard UserDefaults.flag("hourlyCheckIn", default: true) else { return }
         let hours = Int(r.duration(at: now) / 3600)
         guard hours >= 1 else { return }
         if let n = nudged, n.id == r.id, n.hours >= hours { return }

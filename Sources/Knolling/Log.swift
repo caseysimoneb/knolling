@@ -39,6 +39,13 @@ struct Session: Identifiable, Equatable {
     func duration(at now: Date) -> TimeInterval { max(0, (end ?? now).timeIntervalSince(start)) }
 }
 
+extension UserDefaults {
+    /// An on/off setting, with a default when it isn't set. Reads true/false, 1/0, and YES/NO alike.
+    static func flag(_ key: String, default fallback: Bool) -> Bool {
+        standard.object(forKey: key) == nil ? fallback : standard.bool(forKey: key)
+    }
+}
+
 enum Fmt {
     private static func formatter(_ format: String) -> DateFormatter {
         let f = DateFormatter()

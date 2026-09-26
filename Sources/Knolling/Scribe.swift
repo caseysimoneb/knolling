@@ -27,7 +27,10 @@ enum Scribe {
         UserDefaults.standard.string(forKey: "recordStylePath")
             ?? Bundle.main.path(forResource: "RECORD-STYLE", ofType: "md")
     }
-    static var enabled: Bool { UserDefaults.standard.object(forKey: "claudeNotes") as? Bool ?? false }
+    static var enabled: Bool { UserDefaults.flag("claudeNotes", default: false) }
+    /// Token counts per session: a separate switch, since it reads transcripts but never calls a model.
+    static var tokensEnabled: Bool { UserDefaults.flag("claudeTokens", default: false) }
+    private static var anyEnabled: Bool { enabled || tokensEnabled }
 
     /// True when no account is required, or the CLI is signed in to the required one.
     private static var cliAllowed: Bool {
@@ -64,7 +67,7 @@ enum Scribe {
 
     /// Clock-out: note the record as owed, then try to write it.
     static func owe(_ session: Session, store: Store) {
-        guard enabled, let end = session.end else { return }
+        guard anyEnabled, let end = session.end else { return }
         let item = Owed(id: session.id, kind: session.kind.rawValue, start: session.start, end: end, owedSince: Date())
         queue.async { saveOwed(loadOwed() + [item]) }
         settle(store)
@@ -77,7 +80,7 @@ enum Scribe {
     /// Try every owed record. Safe to call often. Owed records are only read and written on
     /// `queue`, one block at a time, so a pass can't race a new clock-out.
     static func settle(_ store: Store) {
-        guard enabled else { return }
+        guard anyEnabled else { return }
         if settling { again = true; return }
         settling = true
         queue.async {
@@ -104,7 +107,7 @@ enum Scribe {
         let canWrite = cliAllowed
         let style = stylePath.flatMap { try? String(contentsOfFile: $0, encoding: .utf8) }
         var lines: [String] = []
-        for a in found {
+        for a in found where enabled {
             var written: Written?
             if canWrite, let style {
                 // a slow or busy moment shouldn't cost the record: try up to three times
@@ -130,7 +133,7 @@ enum Scribe {
             if let folder = a.folder { lines.append("        - folder: \(display(folder))") }
         }
         let used = found.reduce(Usage()) { $0 + $1.usage }
-        if complete, used.new > 0 { lines.append(used.line) }
+        if complete, tokensEnabled, used.new > 0 { lines.append(used.line) }
         return (lines, complete)
     }
 
