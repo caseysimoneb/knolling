@@ -58,6 +58,13 @@ enum Fmt {
         return h > 0 ? "\(h)h \(String(format: "%02d", m))m" : "\(m)m"
     }
 
+    /// "950", "46k", "841k", "1.2M"
+    static func tokens(_ n: Int) -> String {
+        if n >= 1_000_000 { return String(format: n >= 10_000_000 ? "%.0fM" : "%.1fM", Double(n) / 1_000_000) }
+        if n >= 1_000 { return "\(n / 1_000)k" }
+        return "\(n)"
+    }
+
     /// "1:05", for the menu bar
     static func clock(_ t: TimeInterval) -> String {
         let minutes = Int(t / 60)

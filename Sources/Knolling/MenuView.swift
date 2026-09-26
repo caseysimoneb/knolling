@@ -334,7 +334,13 @@ private struct SessionRow: View {
     var body: some View {
         let s = session
         let records = s.notes.enumerated().filter { $0.element.text.hasPrefix(Self.recordMark) }
-        let mine = s.notes.enumerated().filter { !$0.element.text.hasPrefix(Self.recordMark) }
+        let tokensNote = s.notes.first { $0.text.hasPrefix(Self.tokensMark) }?.text
+        let mine = s.notes.enumerated().filter {
+            !$0.element.text.hasPrefix(Self.recordMark) && !$0.element.text.hasPrefix(Self.tokensMark)
+        }
+        // the small number on the row: stored at clock-out, or live for the running session
+        let tokens: String? = tokensNote.flatMap { $0.dropFirst(Self.tokensMark.count).split(separator: " ").first.map(String.init) }
+            ?? store.liveTokens[s.id].flatMap { $0 > 0 ? Fmt.tokens($0) : nil }
 
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 0) {
@@ -357,6 +363,11 @@ private struct SessionRow: View {
                     .underline(isOpen, color: Color.primary.opacity(0.5))
                     .padding(.leading, 12)
                 Spacer()
+                if let tokens {
+                    Text(tokens).font(Mono.small).foregroundStyle(Color.primary.opacity(0.38))
+                        .padding(.trailing, 8)
+                        .help("tokens: new work by Claude in this session (not counting cache reads)")
+                }
                 Text(Fmt.duration(s.duration(at: store.now))).foregroundStyle(.tertiary)
                 Image(systemName: "chevron.right")
                     .font(Face.grot(8, .semibold))
@@ -391,6 +402,10 @@ private struct SessionRow: View {
                             .foregroundStyle(.secondary)
                         }
                     }
+                    if let tokensNote {
+                        Text(tokensNote).font(Mono.small).foregroundStyle(.tertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     if records.isEmpty && mine.isEmpty {
                         Text(s.isRunning ? "records are written at clock-out" : "no notes")
                             .font(Mono.small).foregroundStyle(.tertiary)
@@ -404,6 +419,7 @@ private struct SessionRow: View {
     }
 
     static let recordMark = "record · "
+    static let tokensMark = "tokens · "
 }
 
 /// Plain text until clicked; then a small field. Return saves, Escape or clicking away cancels.

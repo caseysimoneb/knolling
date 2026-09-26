@@ -129,10 +129,31 @@ enum Scribe {
             if files.count > 10 { lines.append("        - file: …and \(files.count - 10) more") }
             if let folder = a.folder { lines.append("        - folder: \(display(folder))") }
         }
+        let used = found.reduce(Usage()) { $0 + $1.usage }
+        if complete, used.new > 0 { lines.append(used.line) }
         return (lines, complete)
     }
 
     // MARK: finding the sessions I used
+
+    /// Tokens from the transcripts. "New work" is everything except cache reads (Claude re-reading the
+    /// conversation so far), which is what the menu shows.
+    struct Usage {
+        var input = 0, output = 0, cacheWrite = 0, cacheRead = 0
+        var new: Int { input + output + cacheWrite }
+        static func + (a: Usage, b: Usage) -> Usage {
+            Usage(input: a.input + b.input, output: a.output + b.output,
+                  cacheWrite: a.cacheWrite + b.cacheWrite, cacheRead: a.cacheRead + b.cacheRead)
+        }
+        var line: String {
+            "    - tokens · \(Fmt.tokens(new)) new (output \(Fmt.tokens(output)) · cache written \(Fmt.tokens(cacheWrite)) · input \(Fmt.tokens(input))) · \(Fmt.tokens(new + cacheRead)) with cache reads"
+        }
+    }
+
+    /// Tokens used by the Claude sessions that count for a window (same rules as the record).
+    static func usage(from start: Date, to end: Date) -> Usage {
+        activity(from: start, to: end).reduce(Usage()) { $0 + $1.usage }
+    }
 
     struct Activity {
         let id: String
@@ -141,6 +162,7 @@ enum Scribe {
         var excerpt: [String]     // who said what, briefly
         var stillWorking: Bool    // Claude was mid-task at clock-out
         var cwd: String?
+        var usage = Usage()
 
         /// Where the work lives locally: the folder the touched files share, else where the session ran.
         var folder: String? {
@@ -209,6 +231,7 @@ enum Scribe {
         iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         var files: [String] = [], excerpt: [String] = [], entrypoint: String?, cwd: String?
         var iSpoke = false
+        var usage = Usage(), replies = Set<String>()
         var last: (stamp: Date, finishedReply: Bool)?
 
         for line in text.split(separator: "\n") {
@@ -248,6 +271,13 @@ enum Scribe {
                 last = (stamp, type == "assistant" && !usesTool)
             }
             guard type == "assistant" else { continue }
+            // one reply can be split across several entries; count its usage once
+            if let u = message["usage"] as? [String: Any], replies.insert((message["id"] as? String) ?? UUID().uuidString).inserted {
+                usage.input += u["input_tokens"] as? Int ?? 0
+                usage.output += u["output_tokens"] as? Int ?? 0
+                usage.cacheWrite += u["cache_creation_input_tokens"] as? Int ?? 0
+                usage.cacheRead += u["cache_read_input_tokens"] as? Int ?? 0
+            }
             for block in blocks {
                 switch block["type"] as? String {
                 case "text":
@@ -278,7 +308,7 @@ enum Scribe {
         }
         // Mid-task at clock-out: the last thing in the window wasn't a finished reply, and it was recent.
         let stillWorking = last.map { !$0.finishedReply && end.timeIntervalSince($0.stamp) < 300 } ?? false
-        return Activity(id: id, title: title ?? "Claude Code (terminal)", files: files, excerpt: excerpt, stillWorking: stillWorking, cwd: cwd)
+        return Activity(id: id, title: title ?? "Claude Code (terminal)", files: files, excerpt: excerpt, stillWorking: stillWorking, cwd: cwd, usage: usage)
     }
 
     /// A message I typed, as opposed to one the app injected (task notices, attachments, reminders).

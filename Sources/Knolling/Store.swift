@@ -13,6 +13,8 @@ final class Store: ObservableObject {
     /// An hourly check-in went out and the menu hasn't been opened since.
     @Published private(set) var nudgeUnseen = false
     @Published var problem: String?
+    /// Tokens so far for the running session (new work), refreshed on open and every five minutes.
+    @Published private(set) var liveTokens: [String: Int] = [:]
 
     private var timer: Timer?
     private var pinnedNow = false
@@ -166,6 +168,7 @@ final class Store: ObservableObject {
         nudgeUnseen = false
         if !pinnedNow { now = Date() }
         reload()
+        refreshLiveTokens()
     }
 
     func openLog() {
@@ -184,6 +187,15 @@ final class Store: ObservableObject {
         objectWillChange.send()
     }
 
+    private func refreshLiveTokens() {
+        guard Scribe.enabled, let r = running else { return }
+        let start = r.start, id = r.id
+        DispatchQueue.global(qos: .utility).async {
+            let n = Scribe.usage(from: start, to: Date()).new
+            DispatchQueue.main.async { self.liveTokens = [id: n] }
+        }
+    }
+
     // MARK: internals
 
     private func attempt(_ body: () throws -> Void) {
@@ -200,7 +212,7 @@ final class Store: ObservableObject {
         reload()
         checkNudge()
         ticks += 1
-        if ticks % 30 == 0 { Scribe.settle(self) }   // every five minutes
+        if ticks % 30 == 0 { Scribe.settle(self); refreshLiveTokens() }   // every five minutes
     }
 
     /// Once per full hour of a running session. Ignoring it changes nothing.

@@ -89,7 +89,15 @@ oval, as small ticks with labels."* The pointer in `YearOval` marks where it goe
   only there for when you forget to clock out.
 - **Fix anything by hand.** Click any time in the menu to change it (`8`, `830`, `2pm` all work),
   or edit the log file directly — Knolling re-reads it and never overwrites your edits.
-- **Sessions stay collapsed** until you click one open to see what was done in it.
+- **Sessions stay collapsed** until you click one open to see what was done in it. The caret by
+  *Today* opens the whole week.
+- **The menu bar stays quiet.** Off the clock it shows a small grid; live, `R 1:12` or `T 0:40`. The
+  hourly check-in offers **Stop** and **Add note**; if you haven't seen it, a trailing `·` appears.
+- **Nothing typed is lost.** Words typed but not entered when you tap a button are kept as a note.
+  Click a note's words to rewrite them; clear them to remove the note.
+- **Mis-taps disappear.** A start-then-stop under a minute with no notes is removed.
+- **The week runs Sunday to Saturday.** A quiet bar fills toward a weekly goal (40 hours by default;
+  click the number to change it).
 
 ## the log
 
@@ -105,6 +113,11 @@ One Markdown file, newest first, readable anywhere:
 - 2026-09-24  11:00–       teaching  running
 ```
 
+Sessions are Markdown list items, so the file renders cleanly in Obsidian and still reads as plain
+text. Knolling re-reads the file before every change and touches only the line it needs, so your
+edits survive. If you fix a time by hand, the duration is recomputed; the duration text on that line
+is for reading, not counting, and may lag until you edit it.
+
 ## the Claude record (optional, off by default)
 
 If you work with [Claude Code](https://claude.com/claude-code), Knolling can act as a quiet
@@ -115,26 +128,35 @@ log, and the exact files Claude wrote or edited.
 
 The record is written to a style guide you own — [`RECORD-STYLE.md`](RECORD-STYLE.md) — built on a
 simple grammar: every entry is **subject + predicate + context**, one act per sentence, and the
-subject is always **I** or **Claude**. Judgment verbs (decided, framed, chose) belong to you;
+subject is always somebody: **I**, **Claude**, or another person. Judgment verbs (decided, framed, chose) belong to you;
 execution verbs (drafted, built, searched) can be Claude's; and when an idea came from Claude, the
 record says so. The point is a notebook where authorship stays legible.
 
 If you close the laptop or lose the connection at clock-out, nothing is lost: the record is saved as
 *owed* the moment you clock out and written once Knolling can reach Claude again (on wake, when the
-network returns, on relaunch, or within a few minutes).
+network returns, on relaunch, or within a few minutes). After a week, the file list is written
+without a summary.
+
+The file list comes from the session transcripts, not from a model: files Claude wrote or edited in
+that window, plus files named in its shell commands that changed during it (a best guess; it can miss
+or add one). The sentences are Claude's. If Claude was still working at clock-out, the record says so.
+Regular claude.ai chats aren't stored on the Mac, so they can't be read.
 
 Turn it on with `defaults write <bundle id> claudeNotes -bool true`. It uses your own `claude` CLI
 (no tools, nothing saved as a session); you can limit it to one Claude account with the settings below.
 
 ## build
 
-Requires macOS 14 or later (the glass is Liquid Glass on macOS 26) and the Xcode Command Line Tools.
+Requires macOS 14 or later (the glass is Liquid Glass on macOS 26) and the Xcode Command Line Tools
+(Swift 5.10+).
 
 ```bash
 ./build.sh
 ```
 
-This builds, installs `~/Applications/Knolling.app`, and opens it. Knolling registers itself to
+This builds, installs `~/Applications/Knolling.app`, and opens it. Build scratch goes to
+`~/Library/Caches/knolling-build`, outside iCloud. The app is ad-hoc signed, so macOS may ask for
+microphone and speech permission again after a rebuild. Knolling registers itself to
 start at login on first run (undo in System Settings → General → Login Items).
 
 To use your own bundle identifier, put `KNOLLING_BUNDLE_ID=com.you.knolling` in a `mine.env` file
