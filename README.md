@@ -90,6 +90,7 @@ oval, as small ticks with labels."* The pointer in `YearOval` marks where it goe
 - **Fix anything by hand.** Click any time in the menu to change it (`8`, `830`, `2pm` all work),
   or edit the log file directly — Knolling re-reads it and never overwrites your edits.
 - **Sessions stay collapsed** until you click one open to see what was done in it.
+- **Any day this week.** Click a day in the week strip to see that day's sessions; click it again to come back to today.
 - **Add a note after the fact.** Open any finished session and click *add a note*; it's stamped with when you wrote it. The caret by
   *Today* opens the whole week.
 - **The menu bar stays quiet.** Off the clock it shows a small grid; live, `R 1:12` or `T 0:40`. The
