@@ -89,7 +89,8 @@ oval, as small ticks with labels."* The pointer in `YearOval` marks where it goe
   only there for when you forget to clock out.
 - **Fix anything by hand.** Click any time in the menu to change it (`8`, `830`, `2pm` all work),
   or edit the log file directly — Knolling re-reads it and never overwrites your edits.
-- **Sessions stay collapsed** until you click one open to see what was done in it. The caret by
+- **Sessions stay collapsed** until you click one open to see what was done in it.
+- **Add a note after the fact.** Open any finished session and click *add a note*; it's stamped with when you wrote it. The caret by
   *Today* opens the whole week.
 - **The menu bar stays quiet.** Off the clock it shows a small grid; live, `R 1:12` or `T 0:40`. The
   hourly check-in offers **Stop** and **Add note**; if you haven't seen it, a trailing `·` appears.
@@ -163,7 +164,7 @@ without a summary.
 The file list comes from the session transcripts, not from a model: files Claude wrote or edited in
 that window, plus files named in its shell commands that changed during it (a best guess; it can miss
 or add one). The sentences are Claude's. If Claude was still working at clock-out, the record says so.
-Regular claude.ai chats aren't stored on the Mac, so they can't be read.
+Regular claude.ai chats aren't stored on the Mac, so they can't be read. Every attempt to write a record is logged, with timings, in `~/Library/Logs/Knolling/scribe.log`.
 
 Turn it on with `defaults write <bundle id> claudeNotes -bool true`. It uses your own `claude` CLI
 (no tools, nothing saved as a session); you can limit it to one Claude account with the settings below.

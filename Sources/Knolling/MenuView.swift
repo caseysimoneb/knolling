@@ -406,9 +406,15 @@ private struct SessionRow: View {
                         Text(tokensNote).font(Mono.small).foregroundStyle(.tertiary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    if records.isEmpty && mine.isEmpty {
-                        Text(s.isRunning ? "records are written at clock-out" : "no notes")
-                            .font(Mono.small).foregroundStyle(.tertiary)
+                    if s.isRunning {
+                        if records.isEmpty && mine.isEmpty {
+                            Text("records are written at clock-out").font(Mono.small).foregroundStyle(.tertiary)
+                        }
+                    } else {
+                        // add a note after the fact; it's stamped with when you wrote it
+                        AddNote(label: records.isEmpty && mine.isEmpty ? "no notes · add one" : "add a note") {
+                            store.addNote(to: s.id, $0)
+                        }
                     }
                 }
                 .padding(.horizontal, 4)
@@ -420,6 +426,45 @@ private struct SessionRow: View {
 
     static let recordMark = "record · "
     static let tokensMark = "tokens · "
+}
+
+/// A faint line that becomes a note field when clicked. Return adds the note; Escape or clicking away cancels.
+private struct AddNote: View {
+    let label: String
+    let add: (String) -> Void
+    @State private var writing = false
+    @State private var draft = ""
+    @State private var hovering = false
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        if writing {
+            TextField("a note on this session", text: $draft, axis: .vertical)
+                .textFieldStyle(.plain)
+                .font(Face.grot(12))
+                .lineLimit(1...4)
+                .focused($focused)
+                .onSubmit {
+                    let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !text.isEmpty { add(text) }
+                    draft = ""; writing = false
+                }
+                .onExitCommand { draft = ""; writing = false }
+                .onChange(of: focused) { _, isFocused in if !isFocused { writing = false } }
+                .onAppear { DispatchQueue.main.async { focused = true } }
+                .padding(.bottom, 4)
+                .overlay(alignment: .bottom) { Rectangle().fill(Color.primary.opacity(0.13)).frame(height: 1) }
+        } else {
+            Text(label)
+                .font(Mono.small)
+                .foregroundStyle(Color.primary.opacity(hovering ? 0.6 : 0.38))
+                .underline(hovering, pattern: .dot)
+                .contentShape(Rectangle())
+                .onHover { hovering = $0 }
+                .onTapGesture { writing = true }
+                .help("Add a note to this session")
+        }
+    }
 }
 
 /// Plain text until clicked; then a small field. Return saves, Escape or clicking away cancels.

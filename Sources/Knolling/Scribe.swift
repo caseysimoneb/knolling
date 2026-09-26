@@ -39,7 +39,7 @@ enum Scribe {
     }
 
     private static let home = FileManager.default.homeDirectoryForCurrentUser.path
-    private static let queue = DispatchQueue(label: "knolling.scribe", qos: .utility)
+    private static let queue = DispatchQueue(label: "knolling.scribe", qos: .userInitiated)
 
     // MARK: records owed
     //
@@ -84,12 +84,19 @@ enum Scribe {
         if settling { again = true; return }
         settling = true
         queue.async {
+            // Knolling has no window, so macOS naps it and runs what it launches at low priority;
+            // writing a record is time-sensitive, so ask not to be napped while a pass runs.
+            let activity = ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .suddenTerminationDisabled],
+                                                                 reason: "Writing Knolling records")
+            defer { ProcessInfo.processInfo.endActivity(activity) }
             var keep: [Owed] = []
             for item in loadOwed() {
                 let giveUp = Date().timeIntervalSince(item.owedSince) > 7 * 86_400
                 let (lines, complete) = recordLines(from: item.start, to: item.end, giveUp: giveUp)
-                if !complete { keep.append(item); continue }
+                let owedFor = Int(Date().timeIntervalSince(item.owedSince) / 60)
+                if !complete { keep.append(item); diagnose("still owed after \(owedFor) min: \(item.id)"); continue }
                 if !lines.isEmpty { DispatchQueue.main.sync { store.appendRecord(for: item, lines) } }
+                diagnose("written after \(owedFor) min: \(item.id)")
             }
             saveOwed(keep)
             DispatchQueue.main.async {
@@ -103,7 +110,9 @@ enum Scribe {
     /// summary couldn't be written yet (offline, asleep, busy) and the record is still owed.
     static func recordLines(from start: Date, to end: Date, giveUp: Bool = true) -> (lines: [String], complete: Bool) {
         var complete = true
+        let t0 = Date()
         let found = activity(from: start, to: end)
+        diagnose("found \(found.count) Claude session(s) in \(Int(Date().timeIntervalSince(t0)))s")
         let canWrite = cliAllowed
         let style = stylePath.flatMap { try? String(contentsOfFile: $0, encoding: .utf8) }
         var lines: [String] = []
@@ -113,7 +122,9 @@ enum Scribe {
                 // a slow or busy moment shouldn't cost the record: try up to three times
                 for attempt in 0..<3 where written == nil {
                     if attempt > 0 { Thread.sleep(forTimeInterval: 20) }
+                    let t1 = Date()
                     written = write(a, style: style, from: start, to: end)
+                    diagnose("summary \(written == nil ? "failed" : "written") in \(Int(Date().timeIntervalSince(t1)))s: \(a.title)")
                 }
             }
             if written == nil, canWrite, style != nil, !giveUp { complete = false; break }
@@ -371,32 +382,67 @@ enum Scribe {
         p.executableURL = URL(fileURLWithPath: claude)
         p.arguments = ["-p", "--model", "sonnet", "--tools", "", "--no-session-persistence", "--strict-mcp-config"]
         p.currentDirectoryURL = URL(fileURLWithPath: scratch)
+        p.qualityOfService = .userInitiated
         var env = ProcessInfo.processInfo.environment.filter { !$0.key.hasPrefix("CLAUDE") }
         env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
         p.environment = env
-        let input = Pipe(), output = Pipe()
+        let input = Pipe(), output = Pipe(), errors = Pipe()
         p.standardInput = input
         p.standardOutput = output
-        p.standardError = FileHandle.nullDevice
-        do { try p.run() } catch { return nil }
+        p.standardError = errors
+        // Read output and errors while claude runs: waiting until it exits to read them can deadlock
+        // (it blocks writing into a full pipe while we block waiting for it to exit).
+        let lock = NSLock()
+        var outData = Data(), errData = Data()
+        output.fileHandleForReading.readabilityHandler = { h in let d = h.availableData; lock.lock(); outData.append(d); lock.unlock() }
+        errors.fileHandleForReading.readabilityHandler = { h in let d = h.availableData; lock.lock(); errData.append(d); lock.unlock() }
+        do { try p.run() } catch { diagnose("couldn't start claude: \(error.localizedDescription)"); return nil }
         input.fileHandleForWriting.write(prompt.data(using: .utf8)!)
         try? input.fileHandleForWriting.close()
 
-        let done = DispatchSemaphore(value: 0)
-        DispatchQueue.global().async { p.waitUntilExit(); done.signal() }
-        if done.wait(timeout: .now() + 300) == .timedOut { p.terminate(); return nil }
-        guard p.terminationStatus == 0 else { return nil }
-
-        let raw = String(data: output.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        // five minutes of wall-clock time (a sleeping Mac doesn't stretch it)
+        let deadline = Date().addingTimeInterval(300)
+        while p.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.5) }
+        let timedOut = p.isRunning
+        if timedOut { p.terminate(); Thread.sleep(forTimeInterval: 1) }
+        output.fileHandleForReading.readabilityHandler = nil
+        errors.fileHandleForReading.readabilityHandler = nil
+        lock.lock()
+        outData.append(output.fileHandleForReading.readDataToEndOfFile())
+        errData.append(errors.fileHandleForReading.readDataToEndOfFile())
+        let raw = String(data: outData, encoding: .utf8) ?? "", why = String(data: errData, encoding: .utf8) ?? ""
+        lock.unlock()
+        if timedOut {
+            diagnose("timed out after 300s (\(a.title)); printed \(outData.count)B out, \(errData.count)B err: \(why.suffix(300))")
+            return nil
+        }
+        guard p.terminationStatus == 0 else {
+            diagnose("claude exited \(p.terminationStatus) (\(a.title)): \(why.prefix(400))")
+            return nil
+        }
         guard let open = raw.firstIndex(of: "{"), let close = raw.lastIndex(of: "}"),
               let json = try? JSONSerialization.jsonObject(with: Data(raw[open...close].utf8)) as? [String: Any],
-              let glance = (json["glance"] as? String).map(oneLine), !glance.isEmpty else { return nil }
+              let glance = (json["glance"] as? String).map(oneLine), !glance.isEmpty else {
+            diagnose("unreadable reply (\(a.title)): \(raw.prefix(300))")
+            return nil
+        }
         return Written(glance: glance,
                        entries: (json["entries"] as? [String] ?? []).map(oneLine).filter { !$0.isEmpty },
                        stillWorking: (json["still_working"] as? String).map(oneLine))
     }
 
     // MARK: helpers
+
+    /// Records written, still owed, and failed attempts go to ~/Library/Logs/Knolling/scribe.log,
+    /// so a slow or stuck record can be diagnosed.
+    static func diagnose(_ message: String) {
+        let dir = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0].appendingPathComponent("Logs/Knolling")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("scribe.log")
+        let line = "\(ISO8601DateFormatter().string(from: Date()))  \(message.replacingOccurrences(of: "\n", with: " "))\n"
+        if let h = try? FileHandle(forWritingTo: url) { h.seekToEndOfFile(); h.write(line.data(using: .utf8)!); try? h.close() }
+        else { try? line.write(to: url, atomically: true, encoding: .utf8) }
+    }
 
     /// Paths named in a shell command that point to files modified during the window — edits made
     /// with scripts rather than the editing tools. Files only read are left out by the time check.
