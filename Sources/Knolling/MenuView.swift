@@ -9,6 +9,8 @@ struct MenuView: View {
     @StateObject private var dictation = Dictation()
     @State private var draft = ""
     @State private var open: Set<String> = []
+    /// A day of this week chosen in the week strip (0 = Sunday); nil shows today.
+    @State private var dayShown: Int?
     @FocusState private var fieldFocused: Bool
 
     var body: some View {
@@ -88,7 +90,9 @@ struct MenuView: View {
                 }
                 .font(Mono.body)
             }
-            WeekStrip(days: store.dayMinutes, today: Calendar.current.component(.weekday, from: store.now) - 1)
+            WeekStrip(days: store.dayMinutes, today: todayIndex, selected: dayShown) { day in
+                dayShown = (day == todayIndex || day == dayShown) ? nil : day
+            }
         }
     }
 
@@ -169,14 +173,28 @@ struct MenuView: View {
 
     // MARK: today's sessions, collapsed until clicked
 
+    private var todayIndex: Int { Calendar.current.component(.weekday, from: store.now) - 1 }
+
+    /// Today's sessions, or another day's when one is chosen in the week strip.
     private var sessionsList: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text("today").font(Mono.label).textCase(.uppercase).kerning(0.8).foregroundStyle(Color.primary.opacity(0.55))
-                .padding(.horizontal, 4).padding(.bottom, 3)
-            if store.today.isEmpty {
-                Text("nothing yet").font(Mono.small).foregroundStyle(.tertiary).padding(.horizontal, 4)
+        let shown = dayShown.map { store.sessions(onDay: $0) } ?? store.today
+        let title = dayShown.flatMap { d in
+            Calendar.current.date(byAdding: .day, value: d, to: store.weekStart).map { Fmt.weekday.string(from: $0).lowercased() }
+        } ?? "today"
+        return VStack(alignment: .leading, spacing: 1) {
+            HStack {
+                Text(title).font(Mono.label).textCase(.uppercase).kerning(0.8).foregroundStyle(Color.primary.opacity(0.55))
+                Spacer()
+                if dayShown != nil {
+                    Button("back to today") { dayShown = nil }
+                        .buttonStyle(.plain).font(Mono.label).textCase(.uppercase).foregroundStyle(Color.primary.opacity(0.45))
+                }
             }
-            ForEach(store.today) { s in
+            .padding(.horizontal, 4).padding(.bottom, 3)
+            if shown.isEmpty {
+                Text(dayShown == nil ? "nothing yet" : "nothing that day").font(Mono.small).foregroundStyle(.tertiary).padding(.horizontal, 4)
+            }
+            ForEach(shown) { s in
                 SessionRow(session: s, isOpen: open.contains(s.id)) {
                     if open.contains(s.id) { open.remove(s.id) } else { open.insert(s.id) }
                 }
@@ -287,6 +305,8 @@ struct YearOval: View {
 struct WeekStrip: View {
     let days: [(research: Int, teaching: Int)]
     let today: Int
+    var selected: Int? = nil
+    var choose: (Int) -> Void = { _ in }
     private let letters = ["s", "m", "t", "w", "t", "f", "s"]
 
     var body: some View {
@@ -302,8 +322,12 @@ struct WeekStrip: View {
                     .clipped()
                     .overlay(alignment: .bottom) { Rectangle().fill(Color.primary.opacity(0.14)).frame(height: 1) }
                     Text(letters[i]).font(Face.mono(9.5))
-                        .foregroundStyle(i == today ? .primary : .tertiary)
+                        .foregroundStyle(i == today || i == selected ? .primary : .tertiary)
+                        .underline(i == selected)
                 }
+                .contentShape(Rectangle())
+                .onTapGesture { choose(i) }
+                .help("Show this day's sessions")
             }
         }
         .accessibilityLabel("Hours worked each day this week")

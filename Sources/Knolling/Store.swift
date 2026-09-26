@@ -67,6 +67,12 @@ final class Store: ObservableObject {
         }
     }
 
+    /// The sessions on one day of this week (0 = Sunday), in time order.
+    func sessions(onDay offset: Int) -> [Session] {
+        guard let day = weekCalendar.date(byAdding: .day, value: offset, to: weekStart) else { return [] }
+        return sessions.filter { weekCalendar.isDate($0.start, inSameDayAs: day) }.sorted { $0.start < $1.start }
+    }
+
     var thisWeek: [Session] { sessions.filter { $0.start >= weekStart }.sorted { $0.start < $1.start } }
 
     func weekTotal(_ kind: Kind? = nil) -> TimeInterval {
