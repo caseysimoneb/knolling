@@ -72,6 +72,14 @@ enum Fmt {
         return "\(n)"
     }
 
+    /// "579k" → 579000; "1.2M" → 1200000
+    static func parseTokens(_ s: String) -> Int? {
+        let t = s.lowercased()
+        if t.hasSuffix("m"), let v = Double(t.dropLast()) { return Int(v * 1_000_000) }
+        if t.hasSuffix("k"), let v = Double(t.dropLast()) { return Int(v * 1_000) }
+        return Int(t)
+    }
+
     /// "1:05", for the menu bar
     static func clock(_ t: TimeInterval) -> String {
         let minutes = Int(t / 60)

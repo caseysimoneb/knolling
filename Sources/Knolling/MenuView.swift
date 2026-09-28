@@ -357,14 +357,13 @@ private struct SessionRow: View {
 
     var body: some View {
         let s = session
-        let records = s.notes.enumerated().filter { $0.element.text.hasPrefix(Self.recordMark) }
-        let tokensNote = s.notes.first { $0.text.hasPrefix(Self.tokensMark) }?.text
-        let mine = s.notes.enumerated().filter {
-            !$0.element.text.hasPrefix(Self.recordMark) && !$0.element.text.hasPrefix(Self.tokensMark)
-        }
+        let tokenNotes = s.notes.map(\.text).filter { $0.hasPrefix(Self.tokensMark) }
+        let storedTokens = tokenNotes.compactMap { Fmt.parseTokens(String($0.dropFirst(Self.tokensMark.count).split(separator: " ").first ?? "")) }.reduce(0, +)
+        // notes and records, numbered together in the order they're in the log
+        let entries = s.notes.enumerated().filter { !$0.element.text.hasPrefix(Self.tokensMark) }
         // the small number on the row: stored at clock-out, or live for the running session
-        let tokens: String? = tokensNote.flatMap { $0.dropFirst(Self.tokensMark.count).split(separator: " ").first.map(String.init) }
-            ?? store.liveTokens[s.id].flatMap { $0 > 0 ? Fmt.tokens($0) : nil }
+        let tokens: String? = storedTokens > 0 ? Fmt.tokens(storedTokens + (store.liveTokens[s.id] ?? 0))
+            : store.liveTokens[s.id].flatMap { $0 > 0 ? Fmt.tokens($0) : nil }
 
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 0) {
@@ -408,35 +407,36 @@ private struct SessionRow: View {
 
             if isOpen {
                 VStack(alignment: .leading, spacing: 10) {
-                    ForEach(mine, id: \.offset) { i, note in
-                        HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            if let t = note.time { Text(t).font(Mono.small).foregroundStyle(.tertiary) }
-                            Editable(display: note.text, multiline: true) { store.editNote(of: s, at: i, $0); return true }
-                                .font(Face.grot(12))
-                        }
-                    }
-                    ForEach(Array(records.enumerated()), id: \.offset) { n, pair in
-                        if n > 0 || !mine.isEmpty { Rectangle().fill(Color.primary.opacity(0.12)).frame(height: 1) }
+                    ForEach(Array(entries.enumerated()), id: \.offset) { n, pair in
+                        let isRecord = pair.element.text.hasPrefix(Self.recordMark)
+                        if n > 0 { Rectangle().fill(Color.primary.opacity(0.12)).frame(height: 1) }
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
                             Text(String(format: "%02d", n + 1)).font(Mono.small).foregroundStyle(.tertiary)
-                            Editable(display: String(pair.element.text.dropFirst(Self.recordMark.count)), multiline: true) {
-                                store.editNote(of: s, at: pair.offset, Self.recordMark + $0); return true
+                            if isRecord {
+                                Editable(display: String(pair.element.text.dropFirst(Self.recordMark.count)), multiline: true) {
+                                    store.editNote(of: s, at: pair.offset, Self.recordMark + $0); return true
+                                }
+                                .font(Face.grot(12))
+                                .foregroundStyle(.secondary)
+                            } else {
+                                // my own note: its time stays in the log, and shows on hover
+                                Editable(display: pair.element.text, multiline: true) { store.editNote(of: s, at: pair.offset, $0); return true }
+                                    .font(Face.grot(12))
+                                    .help(pair.element.time.map { "noted at \($0)" } ?? "")
                             }
-                            .font(Face.grot(12))
-                            .foregroundStyle(.secondary)
                         }
                     }
-                    if let tokensNote {
-                        Text(tokensNote).font(Mono.small).foregroundStyle(.tertiary)
+                    ForEach(tokenNotes, id: \.self) { line in
+                        Text(line).font(Mono.small).foregroundStyle(.tertiary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     if s.isRunning {
-                        if records.isEmpty && mine.isEmpty {
+                        if entries.isEmpty {
                             Text("records are written at clock-out").font(Mono.small).foregroundStyle(.tertiary)
                         }
                     } else {
                         // add a note after the fact; it's stamped with when you wrote it
-                        AddNote(label: records.isEmpty && mine.isEmpty ? "no notes · add one" : "add a note") {
+                        AddNote(label: entries.isEmpty ? "no notes · add one" : "add a note") {
                             store.addNote(to: s.id, $0)
                         }
                     }

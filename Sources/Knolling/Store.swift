@@ -133,7 +133,9 @@ final class Store: ObservableObject {
         let target = sessions.first { $0.id == owed.id }
             ?? sessions.first { $0.kind.rawValue == owed.kind && !$0.isRunning
                 && $0.start < owed.end && ($0.end ?? owed.end) > owed.start }
-        guard let target, !target.notes.contains(where: { $0.text.hasPrefix("record · ") }) else { return }
+        // never write the same record twice — but a record moved in by hand doesn't block a new one
+        let firstLine = lines.first?.trimmingCharacters(in: .whitespaces).dropFirst(2) ?? ""
+        guard let target, !target.notes.contains(where: { $0.text == firstLine }) else { return }
         attempt { try log.appendLines(to: target.id, lines) }
     }
 

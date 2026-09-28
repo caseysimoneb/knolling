@@ -469,12 +469,13 @@ enum Scribe {
             if previous == "cd" { dir = expand(raw); continue }
             // assignments like F=~/x or p='Sources/x.swift' name the path after the '='
             let token = String(raw.split(separator: "=", omittingEmptySubsequences: false).last ?? "")
-            let path: String
+            var path: String
             if token.hasPrefix("~/") || token.hasPrefix(home + "/") {
                 path = expand(token)
             } else if let dir, !token.hasPrefix("-"), token.contains("/") || token.contains(".") {
                 path = dir + "/" + token
             } else { continue }
+            path = (path as NSString).standardizingPath   // resolve ../ so scratch paths are recognized
             var isDir: ObjCBool = false
             guard fm.fileExists(atPath: path, isDirectory: &isDir), !isDir.boolValue, path != logPath,
                   !path.contains("/.git/"),
