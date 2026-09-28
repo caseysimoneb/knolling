@@ -84,21 +84,22 @@ oval, as small ticks with labels."* The pointer in `YearOval` marks where it goe
 
 - **Two kinds, one tap.** Research or teaching. Tap the live one to stop; tap the other to switch.
 - **Notes in your own words.** Type or dictate (on-device when your Mac supports it) while a
-  session runs, and log a note when it ends. Words are saved as you said them.
+  session runs; notes always go to the session that's running, and when you clock out you can log
+  one more for the session that just ended. Words are saved as you said them.
 - **An hourly check-in that never pauses the clock.** Ignore it and the clock keeps running; it's
   only there for when you forget to clock out.
 - **Fix anything by hand.** Click any time in the menu to change it (`8`, `830`, `2pm` all work),
   or edit the log file directly — Knolling re-reads it and never overwrites your edits.
 - **Sessions stay collapsed** until you click one open to see what was done in it.
 - **Any day this week.** Click a day in the week strip to see that day's sessions; click it again to come back to today.
-- **Add a note after the fact.** Open any finished session and click *add a note*; it's stamped with when you wrote it. The caret by
-  *Today* opens the whole week.
+- **Add a note after the fact.** Open any finished session and click *add a note*; it's stamped with
+  when you wrote it. Your notes and Claude's records are numbered together, in order.
 - **The menu bar stays quiet.** Off the clock it shows a small grid; live, `R 1:12` or `T 0:40`. The
   hourly check-in offers **Stop** and **Add note**; if you haven't seen it, a trailing `·` appears.
 - **Nothing typed is lost.** Words typed but not entered when you tap a button are kept as a note.
   Click a note's words to rewrite them; clear them to remove the note.
 - **Mis-taps disappear.** A start-then-stop under a minute with no notes is removed.
-- **The week runs Sunday to Saturday.** A quiet bar fills toward a weekly goal (40 hours by default;
+- **The week runs Sunday to Saturday**, with the hours so far against a weekly goal (40 by default;
   click the number to change it).
 
 ## make it yours
@@ -145,7 +146,7 @@ If you work with [Claude Code](https://claude.com/claude-code), Knolling can act
 secretary. At clock-out it reads the Claude Code sessions **you actively used while clocked in**
 (only sessions where you sent a message inside that window, and only that slice of them) and adds
 a short record under the session: a one-line glance shown in the menu, a few lines of detail in the
-log, and the exact files Claude wrote or edited.
+log, and the files Claude worked on.
 
 The record is written to a style guide you own — [`RECORD-STYLE.md`](RECORD-STYLE.md) — built on a
 simple grammar: every entry is **subject + predicate + context**, one act per sentence, and the
@@ -207,8 +208,9 @@ the menu to an image — that's how the screenshot above was made.
 
 ## privacy
 
-Everything stays on your Mac: the log is a local file, dictation is on-device when possible, and
-nothing is sent anywhere unless you turn on the Claude record, which uses your own Claude account.
+The log is a local file on your Mac. Dictation runs on-device when your Mac supports it; otherwise it
+uses Apple's speech recognition. Nothing else is sent anywhere unless you turn on the Claude record,
+which uses your own Claude account. Token counts are read from files already on your Mac.
 
 ## license
 
