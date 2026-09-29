@@ -54,8 +54,15 @@ animating. It gave the day a shape.
 So I took that ritual and ran with it.
 
 The name comes from **knolling**: the practice of laying objects out flat, at right angles, so you
-can see everything at once and how the pieces relate. Knolling does the same with time — every
-session laid out in one list, newest first, nothing hidden in a database.
+can see everything at once and how the pieces relate. Tom Sachs made it a studio rule — *always be
+knolling* — and this short film shows it better than any description:
+
+<a href="https://www.youtube.com/watch?v=s-CTkbHnpNQ"><img src="https://img.youtube.com/vi/s-CTkbHnpNQ/hqdefault.jpg" alt="Tom Sachs, 10 Bullets #8: Always Be Knolling (video)" width="320"></a>
+
+*[10 Bullets, #8: "Always Be Knolling"](https://www.youtube.com/watch?v=s-CTkbHnpNQ), by Tom Sachs.*
+
+Knolling does the same with time — every session laid out in one list, newest first, nothing hidden
+in a database.
 
 Most time trackers are built for billing: one clock-in, a lunch break, one clock-out. A split working
 life doesn't work that way — it's a day of short stretches, switches, and returns. Knolling lets you
