@@ -1,10 +1,11 @@
 # Knolling
 
-A small Mac app that lives in the menu bar and keeps track of your time across two kinds of work —
+A small Mac app that lives in the menu bar and keeps track of your time across two kinds of work:
 out of the box, research and teaching. Tap one when you start, tap it again when you stop, tap the
 other to switch, as many times as the day needs. Every clock-in and clock-out, with any notes you
 type or dictate, is written to one plain file on your own computer. It's Markdown by default; the
 format lives in one file of code, so it could feed a spreadsheet instead.
+
 
 Made by [**Caseysimone Ballestas**](https://caseysimone.com), a graduate student in mechanical
 engineering at UC Berkeley. Built with [Claude Code](https://claude.com/claude-code) (Opus 5.5).
@@ -313,3 +314,4 @@ which uses your own Claude account. Token counts are read from files already on 
 
 Code: MIT — see [`LICENSE`](LICENSE). Fonts: Geist and Geist Mono, SIL Open Font License
 ([`Fonts/OFL.txt`](Fonts/OFL.txt)).
+e
