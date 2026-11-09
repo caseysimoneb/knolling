@@ -18,9 +18,12 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$SCRATCH/release/Knolling" "$APP/Contents/MacOS/Knolling"
 sed "s/com.example.knolling/$BUNDLE_ID/" "$HERE/Info.plist" > "$APP/Contents/Info.plist"
 cp "$HERE/RECORD-STYLE.md" "$APP/Contents/Resources/RECORD-STYLE.md"
+cp "$HERE/Knolling.icns" "$APP/Contents/Resources/Knolling.icns"
 mkdir -p "$APP/Contents/Resources/Fonts"
 cp "$HERE"/Fonts/*.ttf "$HERE/Fonts/OFL.txt" "$APP/Contents/Resources/Fonts/"
-codesign --force --sign - "$APP"
+# Sign with a lasting identity if mine.env names one (macOS then remembers permissions across rebuilds);
+# otherwise ad hoc, which works anywhere but asks again after each build.
+codesign --force --sign "${SIGN_IDENTITY:--}" "$APP"
 
 open "$APP"
 echo "Installed $APP"

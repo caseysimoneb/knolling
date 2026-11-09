@@ -11,11 +11,16 @@ struct MenuView: View {
     @State private var open: Set<String> = []
     /// A day of this week chosen in the week strip (0 = Sunday); nil shows today.
     @State private var dayShown: Int?
+    /// How many weeks back the week line shows (0 = this week), moved with ‹ and ›.
+    @State private var weeksBack = UserDefaults.standard.integer(forKey: "snapshotWeeksBack")  // 0 unless set for a snapshot
+    /// A deadline clicked on the year oval, shown in a popover beside it.
+    @State private var deadlineShown: String? = UserDefaults.standard.string(forKey: "snapshotDeadline")
     @FocusState private var fieldFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            YearOval(now: store.now, weekStart: store.weekStart)
+            YearOval(now: store.now, weekStart: store.weekStart, deadlines: store.deadlines, chosen: $deadlineShown)
+                .zIndex(1)  // its popover lies over what's below
 
             HStack(spacing: 18) {
                 ForEach(Kind.allCases) { kindButton($0) }
@@ -41,6 +46,8 @@ struct MenuView: View {
         .fixedSize(horizontal: false, vertical: true)
         .background(PanelGlass(seed: store.weekNumber + 100 * Calendar.current.component(.year, from: store.now)))
         .onAppear { if openFirst, let first = store.today.first { open.insert(first.id) } }
+        // Each time the menu opens, it starts fresh: today's sessions, every one collapsed (times only, no notes).
+        .onChange(of: store.openings) { _, _ in open = []; dayShown = nil; weeksBack = 0; deadlineShown = nil }
         .background(GeometryReader { g in
             Color.clear
                 .onAppear { onSize(g.size) }
@@ -82,18 +89,35 @@ struct MenuView: View {
     private var week: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 4) {
-                Text("week \(store.weekNumber)").font(Mono.label).textCase(.uppercase).kerning(0.8).foregroundStyle(Color.primary.opacity(0.55))
+                Text("week \(store.weekNumber(back: weeksBack))").font(Mono.label).textCase(.uppercase).kerning(0.8).foregroundStyle(Color.primary.opacity(0.55))
+                    // ‹ sits out in the margin, so the label stays where it always was.
+                    .overlay(alignment: .leading) {
+                        weekArrow("‹", shown: weeksBack < store.weeksOfLog, help: "The week before") { weeksBack += 1 }
+                            .offset(x: -15)
+                    }
+                weekArrow("›", shown: weeksBack > 0, help: "The week after") { weeksBack -= 1 }
                 Spacer()
-                Text("\(Fmt.duration(store.weekTotal())) /").font(Mono.body)
+                Text("\(Fmt.duration(store.weekTotal(back: weeksBack))) /").font(Mono.body)
                 Editable(display: "\(store.weeklyGoalHours)h", editValue: "\(store.weeklyGoalHours)", width: 30) {
                     store.setWeeklyGoal($0)
                 }
                 .font(Mono.body)
             }
-            WeekStrip(days: store.dayMinutes, today: todayIndex, selected: dayShown) { day in
-                dayShown = (day == todayIndex || day == dayShown) ? nil : day
+            WeekStrip(days: store.dayMinutes(back: weeksBack), today: weeksBack == 0 ? todayIndex : -1, selected: dayShown) { day in
+                dayShown = ((weeksBack == 0 && day == todayIndex) || day == dayShown) ? nil : day
             }
         }
+    }
+
+    /// ‹ or ›, quiet like the label; hidden (but holding its place) when there's nowhere to go.
+    private func weekArrow(_ mark: String, shown: Bool, help: String, go: @escaping () -> Void) -> some View {
+        Button { dayShown = nil; open = []; go() } label: {
+            Text(mark).font(Mono.label).foregroundStyle(Color.primary.opacity(0.55)).padding(.horizontal, 3).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .opacity(shown ? 1 : 0)
+        .disabled(!shown)
+        .help(help)
     }
 
     // MARK: just ended
@@ -176,27 +200,43 @@ struct MenuView: View {
     private var todayIndex: Int { Calendar.current.component(.weekday, from: store.now) - 1 }
 
     /// Today's sessions, or another day's when one is chosen in the week strip.
+    /// An earlier week with no day chosen shows its days, each with its hours.
     private var sessionsList: some View {
-        let shown = dayShown.map { store.sessions(onDay: $0) } ?? store.today
-        let title = dayShown.flatMap { d in
-            Calendar.current.date(byAdding: .day, value: d, to: store.weekStart).map { Fmt.weekday.string(from: $0).lowercased() }
-        } ?? "today"
+        let start = store.weekStart(back: weeksBack)
+        let shown = dayShown.map { store.sessions(onDay: $0, back: weeksBack) } ?? (weeksBack == 0 ? store.today : [])
+        let dayName = { (d: Int) in Calendar.current.date(byAdding: .day, value: d, to: start).map { Fmt.weekday.string(from: $0).lowercased() } ?? "" }
+        let title: String = {
+            if let d = dayShown { return weeksBack == 0 ? dayName(d) : "week \(store.weekNumber(back: weeksBack)) · \(dayName(d))" }
+            return weeksBack == 0 ? "today" : "week \(store.weekNumber(back: weeksBack))"
+        }()
+        let away = dayShown != nil || weeksBack > 0
         return VStack(alignment: .leading, spacing: 1) {
             HStack {
                 Text(title).font(Mono.label).textCase(.uppercase).kerning(0.8).foregroundStyle(Color.primary.opacity(0.55))
                 Spacer()
-                if dayShown != nil {
-                    Button("back to today") { dayShown = nil }
+                if away {
+                    Button("back to today") { dayShown = nil; weeksBack = 0; open = [] }
                         .buttonStyle(.plain).font(Mono.label).textCase(.uppercase).foregroundStyle(Color.primary.opacity(0.45))
                 }
             }
             .padding(.horizontal, 4).padding(.bottom, 3)
-            if shown.isEmpty {
-                Text(dayShown == nil ? "nothing yet" : "nothing that day").font(Mono.small).foregroundStyle(.tertiary).padding(.horizontal, 4)
-            }
-            ForEach(shown) { s in
-                SessionRow(session: s, isOpen: open.contains(s.id)) {
-                    if open.contains(s.id) { open.remove(s.id) } else { open.insert(s.id) }
+            if weeksBack > 0, dayShown == nil {
+                let days = store.dayMinutes(back: weeksBack)
+                let worked = (0..<7).filter { days[$0].research + days[$0].teaching > 0 }
+                if worked.isEmpty {
+                    Text("nothing that week").font(Mono.small).foregroundStyle(.tertiary).padding(.horizontal, 4)
+                }
+                ForEach(worked, id: \.self) { d in
+                    DayRow(name: dayName(d).split(separator: " ").prefix(2).joined(separator: " "), research: days[d].research, teaching: days[d].teaching) { dayShown = d }
+                }
+            } else {
+                if shown.isEmpty {
+                    Text(dayShown == nil ? "nothing yet" : "nothing that day").font(Mono.small).foregroundStyle(.tertiary).padding(.horizontal, 4)
+                }
+                ForEach(shown) { s in
+                    SessionRow(session: s, isOpen: open.contains(s.id)) {
+                        if open.contains(s.id) { open.remove(s.id) } else { open.insert(s.id) }
+                    }
                 }
             }
         }
@@ -238,6 +278,8 @@ enum Mono {
 struct YearOval: View {
     let now: Date
     let weekStart: Date
+    var deadlines: [Deadline] = []
+    var chosen: Binding<String?> = .constant(nil)
     private let months = ["sep", "oct", "nov", "dec", "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug"]
 
     /// Where each month begins on the ring, in degrees (0° = right, clockwise on screen), placed by hand
@@ -253,17 +295,61 @@ struct YearOval: View {
         CGPoint(x: 244.6, y: 19.3), CGPoint(x: 239.4, y: 68.0), CGPoint(x: 163.6, y: 80.0), CGPoint(x: 81.0, y: 79.8)
     ]
 
+    /// The spot on the ring for a position in months since September, in a drawing of this size.
+    static func point(_ monthsFromSep: Double, in size: CGSize) -> CGPoint {
+        let cx = size.width / 2, cy = size.height / 2
+        let rx = size.width / 2 - 30, ry = size.height / 2 - 14
+        let i = max(0, min(11, Int(monthsFromSep)))
+        let f = monthsFromSep - Double(i)
+        let degrees = monthStarts[i] + (monthStarts[i + 1] - monthStarts[i]) * f
+        let a = CGFloat(degrees * Double.pi / 180)
+        return CGPoint(x: cx + rx * CoreGraphics.cos(a), y: cy + ry * CoreGraphics.sin(a))
+    }
+
+    /// The deadlines that fit on one turn of the ring: from a month ago to eleven months on, so a date
+    /// never lands on top of next year's. The first one not yet past is the next.
+    private var shown: [Deadline] {
+        let from = now.addingTimeInterval(-31 * 86400), to = now.addingTimeInterval(334 * 86400)
+        return deadlines.filter { $0.date >= from && $0.date <= to }
+    }
+    private var next: Deadline? { deadlines.first { $0.date >= now } }
+
     var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ring
+            if let n = next {
+                // The next deadline, named under the oval: label, what, then the date and how far off.
+                HStack(spacing: 6) {
+                    Text("next").font(Mono.label).textCase(.uppercase).kerning(0.8).foregroundStyle(Color.primary.opacity(0.55))
+                    Text(n.shortWhat).font(Mono.small).foregroundStyle(Color.primary).lineLimit(1).truncationMode(.tail)
+                    Spacer(minLength: 6)
+                    Text("\(Self.short(n.date)) · \(Self.daysAway(n, now: now))").font(Mono.small)
+                        .foregroundStyle(Color.primary.opacity(0.7)).fixedSize()
+                }
+                .contentShape(Rectangle())
+                .onTapGesture { chosen.wrappedValue = chosen.wrappedValue == n.id ? nil : n.id }
+                .help("Show this deadline")
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            GeometryReader { g in
+                if let d = shown.first(where: { $0.id == chosen.wrappedValue }) {
+                    let p = Self.point(position(of: d.date), in: CGSize(width: g.size.width, height: 86))
+                    DeadlineCard(deadline: d, now: now)
+                        .frame(width: 214)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .position(x: min(max(p.x, 107), g.size.width - 107), y: p.y + 12 + 54)
+                        .onTapGesture { chosen.wrappedValue = nil }
+                }
+            }
+        }
+    }
+
+    private var ring: some View {
         Canvas { ctx, size in
             let cx = size.width / 2, cy = size.height / 2
             let rx = size.width / 2 - 30, ry = size.height / 2 - 14
-            func point(_ monthsFromSep: Double) -> CGPoint {
-                let i = max(0, min(11, Int(monthsFromSep)))
-                let f = monthsFromSep - Double(i)
-                let degrees = Self.monthStarts[i] + (Self.monthStarts[i + 1] - Self.monthStarts[i]) * f
-                let a = CGFloat(degrees * Double.pi / 180)
-                return CGPoint(x: cx + rx * CoreGraphics.cos(a), y: cy + ry * CoreGraphics.sin(a))
-            }
+            func point(_ monthsFromSep: Double) -> CGPoint { Self.point(monthsFromSep, in: size) }
             ctx.stroke(Path(ellipseIn: CGRect(x: cx - rx, y: cy - ry, width: 2 * rx, height: 2 * ry)),
                        with: .style(Color.primary.opacity(0.42)), lineWidth: 0.9)
 
@@ -276,9 +362,19 @@ struct YearOval: View {
                 ctx.draw(ctx.resolve(label), at: CGPoint(x: c.x * sx, y: c.y * sy), anchor: .center)
             }
 
-            // To mark other dates on the year (conference deadlines, talks, the end of a term), draw them
-            // here the same way: point(position(of: date)) gives each one's spot on the ring. See the
-            // README, "marking dates on the year".
+            // Deadlines: a dot on the ring for each; the next one larger and bright, past ones faint.
+            for d in shown {
+                let p = point(position(of: d.date))
+                let isNext = d == next, isChosen = d.id == chosen.wrappedValue
+                let r: CGFloat = isNext ? 2.6 : 1.7
+                let opacity = d.date < now ? 0.3 : (isNext ? 1 : 0.65)
+                ctx.fill(Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r)),
+                         with: .color(Color.primary.opacity(opacity)))
+                if isChosen {
+                    ctx.stroke(Path(ellipseIn: CGRect(x: p.x - r - 2, y: p.y - r - 2, width: 2 * r + 4, height: 2 * r + 4)),
+                               with: .color(.primary), lineWidth: 1)
+                }
+            }
             let from = position(of: weekStart), to = from + 7 / 365 * 12
             var lit = Path()
             for step in 0...12 {
@@ -288,11 +384,45 @@ struct YearOval: View {
             ctx.stroke(lit, with: .style(.primary), style: StrokeStyle(lineWidth: 3, lineCap: .round))
         }
         .frame(height: 86)
-        .accessibilityLabel("The year, with this week marked")
+        .overlay {
+            GeometryReader { g in
+                // A click target on each dot (the dots themselves are too small to hit).
+                ForEach(shown) { d in
+                    let p = Self.point(position(of: d.date), in: g.size)
+                    Circle().fill(Color.white.opacity(0.001)).frame(width: 13, height: 13)
+                        .position(p)
+                        .onTapGesture { chosen.wrappedValue = chosen.wrappedValue == d.id ? nil : d.id }
+                        .help(d.what)
+                }
+            }
+        }
+        .accessibilityLabel("The year, with this week and my deadlines marked")
+    }
+
+    static func short(_ date: Date) -> String { Fmt.dayMonth.string(from: date).lowercased() }
+    static func daysAway(_ d: Deadline, now: Date) -> String {
+        let days = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: now),
+                                                   to: Calendar.current.startOfDay(for: d.date)).day ?? 0
+        switch days {
+        case 0: return "today"
+        case 1: return "tomorrow"
+        case ..<0: return "\(-days) days ago"
+        default: return "\(days) days"
+        }
+    }
+
+    /// Where a date falls on the ring, in degrees (0° = right, clockwise on screen): the same hand-placed
+    /// months as the menu. The menu-bar icon uses it too.
+    static func degrees(for date: Date) -> Double {
+        let m = months(sinceSeptember: date)
+        let i = max(0, min(11, Int(m)))
+        return monthStarts[i] + (monthStarts[i + 1] - monthStarts[i]) * (m - Double(i))
     }
 
     /// Months elapsed since the start of September, with the day as a fraction.
-    private func position(of date: Date) -> Double {
+    private func position(of date: Date) -> Double { Self.months(sinceSeptember: date) }
+
+    static func months(sinceSeptember date: Date) -> Double {
         let cal = Calendar.current
         let month = cal.component(.month, from: date), day = cal.component(.day, from: date)
         let days = Double(cal.range(of: .day, in: .month, for: date)?.count ?? 30)
@@ -344,6 +474,69 @@ struct WeekStrip: View {
                 Rectangle().fill(Color.primary).frame(width: 1.5, height: 12)
             }
         }
+    }
+}
+
+/// A deadline, opened from its dot: the deadline first and largest, then where and when the venue is.
+struct DeadlineCard: View {
+    let deadline: Deadline
+    let now: Date
+
+    var body: some View {
+        let d = deadline
+        VStack(alignment: .leading, spacing: 3) {
+            Text(d.what).font(Face.grot(12.5, .medium)).fixedSize(horizontal: false, vertical: true)
+            Text("deadline").font(Mono.label).textCase(.uppercase).kerning(0.8).foregroundStyle(Color.primary.opacity(0.55))
+                .padding(.top, 4)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(Fmt.dayMonthYear.string(from: d.date).lowercased()).font(Face.mono(17, medium: true))
+                Text(YearOval.daysAway(d, now: now)).font(Mono.small).foregroundStyle(Color.primary.opacity(0.7))
+            }
+            if d.estimated {
+                Text("estimated · check the venue’s page").font(Mono.label).foregroundStyle(Color.primary.opacity(0.55))
+            }
+            if !d.place.isEmpty || !d.when.isEmpty {
+                Text([d.place, d.when].filter { !$0.isEmpty }.joined(separator: " · "))
+                    .font(Mono.small).foregroundStyle(Color.primary.opacity(0.7)).padding(.top, 4)
+            }
+        }
+        .padding(.horizontal, 11).padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 11).fill(Color(red: 0.16, green: 0.27, blue: 0.45).opacity(0.94)))
+        .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(Color.white.opacity(0.2), lineWidth: 1))
+        .shadow(color: .black.opacity(0.25), radius: 9, y: 4)
+    }
+}
+
+/// One day of an earlier week: its name and its hours; a click shows that day's sessions.
+struct DayRow: View {
+    let name: String
+    let research: Int
+    let teaching: Int
+    let choose: () -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Text(name).frame(width: 64, alignment: .leading)
+            Text([research > 0 ? "research" : nil, teaching > 0 ? "teaching" : nil].compactMap { $0 }.joined(separator: " · "))
+                .font(Face.grot(12.5))
+                .foregroundStyle(Color.primary.opacity(0.7))
+                .lineLimit(1)
+                .padding(.leading, 4)
+            Spacer(minLength: 4)
+            Text(Fmt.duration(TimeInterval((research + teaching) * 60))).foregroundStyle(.tertiary)
+            Image(systemName: "chevron.right")
+                .font(Face.grot(8, .semibold))
+                .foregroundStyle(.tertiary)
+                .padding(.leading, 8)
+        }
+        .font(Mono.body)
+        .monospacedDigit()
+        .padding(.vertical, 6)
+        .padding(.horizontal, 4)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: choose)
+        .help("Show this day's sessions")
     }
 }
 

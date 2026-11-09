@@ -8,7 +8,7 @@ format lives in one file of code, so it could feed a spreadsheet instead.
 
 
 Made by [**Caseysimone Ballestas**](https://caseysimone.com), a graduate student in mechanical
-engineering at UC Berkeley. Built with [Claude Code](https://claude.com/claude-code) (Opus 5.5).
+engineering at UC Berkeley.
 
 <img src="docs/menu.png" alt="The Knolling menu: a year drawn as an oval, research and teaching, a week of hour ticks, a note line, and today's sessions" width="372">
 
@@ -100,6 +100,10 @@ yours with some joy.
   when you wrote it. Your notes and Claude's records are numbered together, in order.
 - **Any day this week.** Click a day in the week strip to see that day's sessions; click it again to
   come back to today.
+- **Earlier weeks.** The ‹ beside the week number goes back a week at a time, as far as the log reaches; › comes forward.
+  An earlier week lists its days with their hours, and a click on a day shows its sessions.
+- **Deadlines on the year.** Point `deadlinesPath` at a plain file of dates, one per line (`- 2026-12-07  ICED27 full paper | Hamburg | 16–20 Aug 2027`, with `~` before an estimated date), and each one becomes a dot on the year oval.
+  The next one is brighter and named under the oval; click any dot for the deadline, how far off it is, and where and when the venue is.
 - **Fix anything by hand.** Click any time in the menu to change it (`8`, `830`, `2pm` all work),
   or edit the log file directly — Knolling re-reads it and never overwrites your edits.
 - **An hourly check-in that never pauses the clock.** Ignore it and the clock keeps running; it's
@@ -257,6 +261,7 @@ account with the settings below.
 | `claudeEmail` | only write records while the `claude` CLI is signed in as this account | any |
 | `claudeAccountFolder` | only read desktop-app sessions from this account's folder | all |
 | `recordStylePath` | your own style guide | the bundled `RECORD-STYLE.md` |
+| `deadlinesPath` | a file of dates to mark on the year oval | none |
 
 To build with your own bundle identifier, put `KNOLLING_BUNDLE_ID=com.you.knolling` in a `mine.env`
 file next to `build.sh`. Build scratch goes to `~/Library/Caches/knolling-build`, outside iCloud.
@@ -285,24 +290,6 @@ There's no automated test suite yet. Changes are checked three ways:
 - The Claude record reads Claude Code transcripts only; regular claude.ai chats aren't stored on the
   Mac. The file list is a best guess for edits made through shell commands, and the sentences are
   written by a model — worth a glance.
-- The week strip shows the current week; earlier weeks are in the log.
-
-## future work
-
-**Marking dates on the year.** The oval could also show what you're working toward: conference
-deadlines, a talk, the end of a term, a submission date. Knolling doesn't do this yet, but the pieces
-are there:
-
-- `YearOval` in [`MenuView.swift`](Sources/Knolling/MenuView.swift) already turns any date into a
-  spot on the ring (`position(of:)`, then `point(_:)`). That's how this week gets lit.
-- A date could be drawn at its spot as a small tick or dot, with a short label, the same way the week
-  segment is drawn. Past dates could fade; the next one could be brighter.
-- The dates themselves could come from a plain file you keep, one per line
-  (`2027-03-15  conference abstract due`), read the same way the log is. That keeps it portable and
-  hand-editable. They could come from a calendar instead, at the cost of that simplicity.
-
-If you build it, ask Claude Code something like: *"add upcoming dates from a dates file to the year
-oval, as small ticks with labels."* The pointer in `YearOval` marks where it goes.
 
 ## privacy
 

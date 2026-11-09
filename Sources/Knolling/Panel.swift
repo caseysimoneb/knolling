@@ -28,7 +28,30 @@ final class PanelController: NSObject, NSWindowDelegate {
             .sink { [weak self] _ in self?.updateButton() }
     }
 
-    /// Off the clock: a small knolled grid. Live: "R 1:12". A trailing dot means an hourly check-in went unseen.
+    /// The app icon's mark in the menu bar: the year's oval in a thin line, and a dot where today falls
+    /// on it (the menu's hand-placed months). A template image, so the Mac draws it black or white.
+    private static var ovalIcons: [Int: NSImage] = [:]
+    static func ovalIcon(for date: Date) -> NSImage {
+        let day = Calendar.current.ordinality(of: .day, in: .year, for: date) ?? 0
+        if let cached = ovalIcons[day] { return cached }
+        let degrees = YearOval.degrees(for: date)
+        let image = NSImage(size: NSSize(width: 22, height: 16), flipped: true) { _ in
+            NSColor.black.setStroke(); NSColor.black.setFill()
+            let oval = NSBezierPath(ovalIn: NSRect(x: 2.5, y: 3.5, width: 17, height: 9))
+            oval.lineWidth = 1.25
+            oval.stroke()
+            let t = degrees * Double.pi / 180
+            let c = NSPoint(x: 11 + 8.5 * cos(t), y: 8 + 4.5 * sin(t))
+            NSBezierPath(ovalIn: NSRect(x: c.x - 2.5, y: c.y - 2.5, width: 5, height: 5)).fill()
+            return true
+        }
+        image.isTemplate = true
+        image.accessibilityDescription = "Knolling"
+        ovalIcons = [day: image]
+        return image
+    }
+
+    /// Off the clock: the oval. Live: "R 1:12". A trailing dot means an hourly check-in went unseen.
     private func updateButton() {
         guard let button = item.button else { return }
         if let r = store.running {
@@ -38,9 +61,7 @@ final class PanelController: NSObject, NSWindowDelegate {
                 attributes: [.font: NSFont(name: "GeistMono-Regular", size: 12.5) ?? NSFont.monospacedSystemFont(ofSize: 12.5, weight: .regular)])
         } else {
             button.title = ""
-            let image = NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: "Knolling")
-            image?.isTemplate = true
-            button.image = image
+            button.image = Self.ovalIcon(for: store.now)
         }
     }
 

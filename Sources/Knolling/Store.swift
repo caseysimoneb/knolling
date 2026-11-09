@@ -12,9 +12,13 @@ final class Store: ObservableObject {
     @Published private(set) var pending: Session?
     /// An hourly check-in went out and the menu hasn't been opened since.
     @Published private(set) var nudgeUnseen = false
+    /// Counts openings of the menu, so the menu can start fresh each time (sessions collapsed).
+    @Published private(set) var openings = 0
     @Published var problem: String?
     /// Tokens so far for the running session (new work), refreshed on open and every five minutes.
     @Published private(set) var liveTokens: [String: Int] = [:]
+    /// Dates I'm working toward, drawn on the year oval (from the `deadlinesPath` file).
+    @Published private(set) var deadlines: [Deadline] = []
 
     private var timer: Timer?
     private var pinnedNow = false
@@ -54,29 +58,44 @@ final class Store: ObservableObject {
         return cal
     }
 
-    /// Week of the year, counted Sunday to Saturday.
-    var weekNumber: Int { weekCalendar.component(.weekOfYear, from: now) }
+    /// The Sunday that starts the week `back` weeks before this one (0 = this week).
+    func weekStart(back: Int) -> Date {
+        weekCalendar.date(byAdding: .day, value: -7 * back, to: weekStart) ?? weekStart
+    }
 
-    /// Minutes worked on each day of this week, Sunday first, by kind.
-    var dayMinutes: [(research: Int, teaching: Int)] {
+    /// Week of the year, counted Sunday to Saturday.
+    var weekNumber: Int { weekNumber(back: 0) }
+    func weekNumber(back: Int) -> Int { weekCalendar.component(.weekOfYear, from: weekStart(back: back)) }
+
+    /// How many weeks back the log goes: the week of its first session.
+    var weeksOfLog: Int {
+        guard let first = sessions.map(\.start).min() else { return 0 }
+        let days = weekCalendar.dateComponents([.day], from: weekCalendar.startOfDay(for: first), to: weekStart).day ?? 0
+        return max(0, (days + 6) / 7)
+    }
+
+    /// Minutes worked on each day of a week, Sunday first, by kind.
+    var dayMinutes: [(research: Int, teaching: Int)] { dayMinutes(back: 0) }
+    func dayMinutes(back: Int) -> [(research: Int, teaching: Int)] {
         (0..<7).map { offset in
-            guard let day = weekCalendar.date(byAdding: .day, value: offset, to: weekStart) else { return (0, 0) }
-            let mine = sessions.filter { weekCalendar.isDate($0.start, inSameDayAs: day) }
+            let mine = sessions(onDay: offset, back: back)
             func total(_ k: Kind) -> Int { Int(mine.filter { $0.kind == k }.reduce(0) { $0 + $1.duration(at: now) } / 60) }
             return (total(.research), total(.teaching))
         }
     }
 
-    /// The sessions on one day of this week (0 = Sunday), in time order.
-    func sessions(onDay offset: Int) -> [Session] {
-        guard let day = weekCalendar.date(byAdding: .day, value: offset, to: weekStart) else { return [] }
+    /// The sessions on one day of a week (0 = Sunday), in time order.
+    func sessions(onDay offset: Int, back: Int = 0) -> [Session] {
+        guard let day = weekCalendar.date(byAdding: .day, value: offset, to: weekStart(back: back)) else { return [] }
         return sessions.filter { weekCalendar.isDate($0.start, inSameDayAs: day) }.sorted { $0.start < $1.start }
     }
 
     var thisWeek: [Session] { sessions.filter { $0.start >= weekStart }.sorted { $0.start < $1.start } }
 
-    func weekTotal(_ kind: Kind? = nil) -> TimeInterval {
-        thisWeek.filter { kind == nil || $0.kind == kind }.reduce(0) { $0 + $1.duration(at: now) }
+    func weekTotal(_ kind: Kind? = nil, back: Int = 0) -> TimeInterval {
+        let start = weekStart(back: back), end = weekStart(back: back - 1)
+        return sessions.filter { $0.start >= start && (back == 0 || $0.start < end) && (kind == nil || $0.kind == kind) }
+            .reduce(0) { $0 + $1.duration(at: now) }
     }
 
     /// Research + teaching hours to aim for each week.
@@ -173,8 +192,10 @@ final class Store: ObservableObject {
     }
 
     func opened() {
+        openings += 1
         nudgeUnseen = false
         if !pinnedNow { now = Date() }
+        foldInbox()
         reload()
         refreshLiveTokens()
     }
@@ -198,7 +219,7 @@ final class Store: ObservableObject {
     private func refreshLiveTokens() {
         guard Scribe.tokensEnabled, let r = running else { return }
         let start = r.start, id = r.id
-        DispatchQueue.global(qos: .utility).async {
+        Scribe.tokenQueue.async {
             let n = Scribe.usage(from: start, to: Date()).new
             DispatchQueue.main.async { self.liveTokens = [id: n] }
         }
@@ -211,12 +232,22 @@ final class Store: ObservableObject {
         reload()
     }
 
-    private func reload() { sessions = log.sessions() } // picks up hand edits too
+    private func reload() { // picks up hand edits too
+        sessions = log.sessions(); deadlines = Deadline.load()
+        if !pinnedNow { Inbox.syncState(sessions, log: log.url) }
+    }
+
+    /// Clock-ins and outs from the phone (see Inbox.swift). Not while the clock is pinned for a snapshot.
+    private func foldInbox() {
+        guard !pinnedNow else { return }
+        for ended in Inbox.fold(into: log) { Scribe.owe(ended, store: self) }
+    }
 
     private var ticks = 0
 
     private func tick() {
         if !pinnedNow { now = Date() }
+        foldInbox()
         reload()
         checkNudge()
         ticks += 1

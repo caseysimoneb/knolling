@@ -57,6 +57,8 @@ enum Fmt {
     static let hm = formatter("HH:mm")
     static let dayHM = formatter("yyyy-MM-dd HH:mm")
     static let weekday = formatter("EEE d MMM")
+    static let dayMonth = formatter("d MMM")
+    static let dayMonthYear = formatter("d MMM yyyy")
 
     /// "1h 05m", "42m"
     static func duration(_ t: TimeInterval) -> String {

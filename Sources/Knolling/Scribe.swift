@@ -39,7 +39,11 @@ enum Scribe {
     }
 
     private static let home = FileManager.default.homeDirectoryForCurrentUser.path
-    private static let queue = DispatchQueue(label: "knolling.scribe", qos: .userInitiated)
+    // `.workItem`: drain autoreleased objects after each pass. Without it, the strings parsed from
+    // transcripts were never freed, and Knolling grew by gigabytes a pass until macOS killed it (2026-11-06).
+    private static let queue = DispatchQueue(label: "knolling.scribe", qos: .userInitiated, autoreleaseFrequency: .workItem)
+    /// For token counts while a session runs; same reason.
+    static let tokenQueue = DispatchQueue(label: "knolling.tokens", qos: .utility, autoreleaseFrequency: .workItem)
 
     // MARK: records owed
     //
@@ -200,15 +204,16 @@ enum Scribe {
 
         var out: [Activity] = []
         for dir in dirs {
-            let files = (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+            let files = (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey, .creationDateKey])) ?? []
             for file in files where file.pathExtension == "jsonl" {
                 let id = file.deletingPathExtension().lastPathComponent
                 if other.contains(id) { continue }
-                let modified = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
-                guard let modified, modified >= start,
-                      let a = read(file, id: id, from: start, to: end, title: listed[id], allowUnlisted: cliAllowed)
-                else { continue }
-                out.append(a)
+                let values = try? file.resourceValues(forKeys: [.contentModificationDateKey, .creationDateKey])
+                // Untouched since the window began, or begun after it ended: nothing in the window.
+                guard let modified = values?.contentModificationDate, modified >= start else { continue }
+                if let created = values?.creationDate, created > end { continue }
+                let a = autoreleasepool { read(file, id: id, from: start, to: end, title: listed[id], allowUnlisted: cliAllowed) }
+                if let a { out.append(a) }
             }
         }
         return out
@@ -249,8 +254,10 @@ enum Scribe {
         var last: (stamp: Date, finishedReply: Bool)?
 
         for line in text.split(separator: "\n") {
-            guard let data = line.data(using: .utf8),
-                  let entry = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
+            let parsed: [String: Any]? = autoreleasepool {
+                line.data(using: .utf8).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            }
+            guard let entry = parsed else { continue }
             if entrypoint == nil { entrypoint = entry["entrypoint"] as? String }
             if let c = entry["cwd"] as? String, (entry["timestamp"] as? String).flatMap(iso.date(from:)).map({ $0 >= start && $0 <= end }) ?? false {
                 cwd = c
@@ -417,7 +424,7 @@ enum Scribe {
             return nil
         }
         guard p.terminationStatus == 0 else {
-            diagnose("claude exited \(p.terminationStatus) (\(a.title)): \(why.prefix(400))")
+            diagnose("claude exited \(p.terminationStatus) (\(a.title)): \((why.isEmpty ? raw : why).prefix(400))")  // some errors (an expired login) go to stdout
             return nil
         }
         guard let open = raw.firstIndex(of: "{"), let close = raw.lastIndex(of: "}"),

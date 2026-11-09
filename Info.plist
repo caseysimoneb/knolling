@@ -10,6 +10,8 @@
     <string>Knolling</string>
     <key>CFBundleExecutable</key>
     <string>Knolling</string>
+    <key>CFBundleIconFile</key>
+    <string>Knolling</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
